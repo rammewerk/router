@@ -1,0 +1,33 @@
+{
+  "name": "rammewerk/router",
+  "type": "library",
+  "description": "Simple router for PHP",
+  "homepage": "https://rammewerk.com",
+  "license": "MIT",
+  "keywords": [
+    "router"
+  ],
+  "authors": [
+    {
+      "name": "Kristoffer Follestad",
+      "email": "kristoffer@rammewerk.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Rammewerk\\Component\\Router\\": "src/"
+    },
+    "exclude-from-classmap": [
+      "tests/",
+      ".idea/"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Rammewerk\\Component\\Router\\Tests\\": "tests/"
+    }
+  },
+  "require": {
+    "php": ">=8.2"
+  }
+}
