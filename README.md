@@ -144,7 +144,7 @@ Resolves and returns the requested path.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 Please note that this project is provided "as is" without warranty of any kind, either expressed or implied, including,
 but not limited to, the implied warranties of merchantability and fitness for a particular purpose. The entire risk as
