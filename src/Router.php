@@ -5,86 +5,119 @@ namespace Rammewerk\Component\Router;
 use Closure;
 use LogicException;
 use ReflectionClass;
+use ReflectionMethod;
+use ReflectionFunction;
+use ArgumentCountError;
 use ReflectionException;
+use ReflectionNamedType;
+use ReflectionParameter;
+
 use Rammewerk\Component\Router\Error\RouteAccessDenied;
 
 class Router {
 
-    /** @var Closure(ReflectionClass<RouteInterface>):RouteInterface|null */
-    private ?Closure $loadRouteCallback;
+    private ?Closure $classLoader = null;
+    private ?Closure $methodLoader = null;
 
-    /** @var array<string, RoutePath> */
-    private array $routeList = [];
+    /** @var array<string, Closure|class-string>
+     */
+    private array $routes = [];
+
+    private ?string $authentication_method = null;
 
 
     /**
-     * Construct route class
+     * Register a method dependency loader
      *
-     * @param class-string|Closure $default_route Define default route handler
-     * @param Closure|null $closure Optional callback for custom loading of route class
+     * This function accepts a closure for loading class method dependencies. This
+     * closure is used to generate instances of objects when needed. The closure should
+     * take a class-string and should return an instance of the same class.
      *
-     * @phpstan-param null|Closure(ReflectionClass<RouteInterface>):RouteInterface $closure
+     * @template T of object
+     * @param Closure(class-string<T>):T $closure
      */
-    public function __construct(string|Closure $default_route, Closure $closure = null) {
-        $this->add('/', $default_route);
-        $this->loadRouteCallback = $closure;
+    public function registerDependencyLoader(Closure $closure): void {
+        $this->methodLoader = $closure;
     }
 
 
     /**
-     * Add route closure
+     * Registers a class dependency loader.
      *
-     * @param string $path
-     * @param Closure(Router):void|class-string $handler
-     * @param string|null $method
-     * @param bool $authorize
+     * This function is just an optional way to load dependencies for the router class. The closure takes a
+     * ReflectionClass instance encapsulating the target class and returns an instance of it.
      *
+     * @template T of object
+     * @param Closure(ReflectionClass<T>):T $closure
+     */
+    public function registerClassDependencyLoader(Closure $closure): void {
+        $this->classLoader = $closure;
+    }
+
+
+    /**
+     * Register class authentication method
+     * @param string $method
      * @return void
      */
-    public function add(
-        string         $path,
-        Closure|string $handler,
-        ?string        $method = null,
-        bool           $authorize = true
-    ): void {
-        $this->map(new RoutePath($path, $handler, $method, $authorize));
+    public function classAuthenticationMethod(string $method): void {
+        $this->authentication_method = $method;
     }
 
 
     /**
-     * Add route map
+     * Adds a new route to the application.
      *
-     * @param RoutePath $route
-     */
-    private function map(RoutePath $route): void {
-        if( $route->getPath() !== '/' && isset($this->routeList[$route->getPath()]) ) {
-            throw new LogicException("Duplicate route ({$route->getPath()}) is not allowed");
-        }
-        $this->routeList[$route->getPath()] = $route;
-    }
-
-
-    /**
-     * Resolve and get path
+     * This method is used to define a new route path, its handling mechanism, route class method,
+     * and authorization status in the application. The route handler that will be used to manage
+     * requests to this path. This could be a closure function or a class name (string) where the
+     * class is expected to have a method to handle the route.
+     *
+     * The class method and authorize params are only used for class based routing, and not for
+     * closures. If class method is defined, it will not resolve class method automatically.
+     *
+     * Authorize parameter is to check whether the router should look for and validate request
+     * through the register class authentication method on the class.
      *
      * @param string $path
-     * @param string|null $noAccessRelocatePath
-     *
-     * @return static
-     * @throws Error\RouteAccessDenied
+     * @param Closure():void|class-string $handler The route handler to manage requests to this path.
      */
-    public function find(string $path, string $noAccessRelocatePath = null): static {
+    public function add(string $path, Closure|string $handler): void {
+
+        $path = '/' . strtolower(trim($path, '/'));
+
+        if( $path !== '/' && isset($this->routes[$path]) ) {
+            throw new LogicException("Duplicate route is not allowed. The path \"$path\" has already been registered.");
+        }
+
+        $this->routes[$path] = $handler;
+
+    }
+
+
+    /**
+     * Finds and handles a route based on a provided path.
+     *
+     * The method locates a route using the input path and initiates its handler.
+     *
+     * @param string $path The route path to locate.
+     *
+     * @throws Error\RouteAccessDenied If a route class is defined and access is not given
+     * @throws LogicException If the default route "/" is not defined.
+     */
+    public function find(string $path): void {
+
+        # Require a default route to be set
+        if( !isset($this->routes['/']) ) {
+            throw new LogicException('Default route "/" is not defined. The application requires a default route to handle unmatched route requests.');
+        }
+
         try {
             $this->resolvePath(array_filter(explode('/', $path), static fn($s) => $s !== ''));
-            return $this;
         } catch( ReflectionException $e ) {
             throw new LogicException("Unable to load route: {$e->getMessage()}", $e->getCode(), $e);
-        } catch( RouteAccessDenied $e ) {
-            if( $noAccessRelocatePath !== null ) {
-                return $this->find($noAccessRelocatePath);
-            }
-            throw $e;
         }
+
     }
 
 
@@ -92,114 +125,146 @@ class Router {
      * Resolve route based on requested path
      *
      * @param string[] $paths
-     * @param string[] $method
      *
      * @throws Error\RouteAccessDenied
      * @throws ReflectionException
      */
-    private function resolvePath(array $paths, array $method = []): void {
+    private function resolvePath(array $paths): void {
 
-        if( empty($paths) ) {
-            $this->loadRoute($this->routeList['/'], $method);
-            return;
+        $context = [];
+
+        while( $paths ) {
+
+            $path = '/' . strtolower(implode('/', $paths));
+
+            # Find route based on given path
+            if( $handler = $this->routes[$path] ?? null ) {
+                try {
+                    # Try to load the route with the current context
+                    $this->loadRouteHandler($path, $handler, $context);
+                    return;
+                } catch( ArgumentCountError ) {
+                    # If ArgumentCountError is caught, continue with next iteration to treat it as an unresolved path
+                }
+            }
+
+            # Move the last path element to the beginning of the context
+            $lastElement = array_pop($paths);
+            assert($lastElement !== null);
+            array_unshift($context, $lastElement);
+
         }
 
-        # Find route based on given path
-        if( $route = $this->routeList['/' . strtolower(implode('/', $paths))] ?? null ) {
-            $this->loadRoute($route, $method);
-            return;
-        }
-
-        # Move end of path to the beginning of method array
-        array_unshift($method, array_pop($paths));
-
-        # @phpstan-ignore-next-line - Check reduced path for match
-        $this->resolvePath($paths, $method);
+        # Load the default route handler if no match is found in the loop
+        $this->loadRouteHandler('/', $this->routes['/'], $context);
 
     }
 
 
     /**
-     * @param RoutePath $routePath
-     * @param string[] $method
+     * @param string $path
+     * @param Closure|class-string $handler
+     * @param string[] $context
      *
-     * @throws Error\RouteAccessDenied
-     * @throws ReflectionException
+     * @throws ReflectionException|ArgumentCountError
+     * @throws RouteAccessDenied
      */
-    private function loadRoute(RoutePath $routePath, array $method): void {
+    private function loadRouteHandler(string $path, Closure|string $handler, array $context): void {
 
         # Just call the closure if defined
-        if( $routePath->getClosure() ) {
-            ( $routePath->getClosure() )(...$method);
+        if( $handler instanceof Closure ) {
+            $this->loadClosureHandler($handler, $context, $path);
             return;
         }
 
-        if( !$routePath->getClass() ) throw new LogicException('Closure or class name is required in' . RoutePath::class);
-
         # Reflection class
-        $reflectionClass = $this->getReflectionClass($routePath->getClass());
+        $reflectionClass = new ReflectionClass($handler);
 
         # Load Route
-        $route = $this->newRouteInstance($reflectionClass);
+        $class = $this->getRouteClassInstance($reflectionClass);
 
         # Validate route access
-        $this->authorize($route, $routePath->authorize());
-
-        # Call route method if defined
-        if( $routePath->getMethod() ) {
-            if( $this->callRouteMethod($reflectionClass, $route, $routePath->getMethod(), $method) ) return;
-            throw new LogicException('RoutePath has a required method, but the route class method is not available.');
-        }
+        if( $this->authentication_method ) $this->authorizeClass($class);
 
         # Resolve Method and call
-        $this->resolveMethod($reflectionClass, $route, $method);
+        $this->resolveClassMethod($reflectionClass, $class, $context);
 
     }
 
-
     /**
-     * @param class-string $class
-     *
-     * @return ReflectionClass<RouteInterface>
-     * @throws ReflectionException
+     * @param Closure(): void $closure
+     * @param string[] $params
+     * @param string $path
+     * @throws ReflectionException|ArgumentCountError
      */
-    private function getReflectionClass(string $class): ReflectionClass {
-        $reflectionClass = new ReflectionClass($class);
-        if( !$reflectionClass->isSubclassOf(RouteInterface::class) ) {
-            throw new LogicException("{$reflectionClass->getName()} is not an instance of " . Route::class);
+    private function loadClosureHandler(Closure $closure, array $params, string $path): void {
+        $reflection = new ReflectionFunction($closure);
+        $args = $this->resolveParameters($reflection->getParameters(), $params);
+        if( $reflection->getNumberOfRequiredParameters() > count($args) ) {
+            throw new ArgumentCountError("The route \"$path\" has mismatching parameter counts.");
         }
-        return $reflectionClass;
+        ($closure)(...$args);
     }
 
 
     /**
-     * @param ReflectionClass<RouteInterface> $reflectionClass
+     * @template T of object
+     * @param ReflectionClass<T> $reflectionClass
      *
-     * @return RouteInterface
+     * @return T
      * @throws ReflectionException
      */
-    private function newRouteInstance(ReflectionClass $reflectionClass): RouteInterface {
-        if( $this->loadRouteCallback ) return ( $this->loadRouteCallback )($reflectionClass);
+    private function getRouteClassInstance(ReflectionClass $reflectionClass) {
+
+        if( $this->classLoader ) {
+            return ($this->classLoader)($reflectionClass);
+        }
+
+        if( $this->methodLoader ) {
+            return ($this->methodLoader)($reflectionClass->getName());
+        }
 
         if( is_null($reflectionClass->getConstructor()) ) {
             return $reflectionClass->newInstanceWithoutConstructor();
         }
 
         # Routes with constructors must be created through the closure given when initializing the router.
-        throw new LogicException('A route with constructor can only be loaded through a closure');
+        throw new LogicException('A route with a constructor has been encountered, but no class loader is registered to handle object instantiation. Please register a class loader when initializing the router.');
 
     }
 
 
     /**
-     * @param RouteInterface $route
-     * @param bool $authorize
+     * @param object $class
      *
      * @return void
      * @throws RouteAccessDenied
+     * @throws ReflectionException
      */
-    private function authorize(RouteInterface $route, bool $authorize): void {
-        if( !$authorize || $route->hasRouteAccess() ) return;
+    private function authorizeClass(object $class): void {
+
+        if( is_null($this->authentication_method) ) return;
+
+        if( !method_exists($class, $this->authentication_method) ) {
+            throw new RouteAccessDenied("Route requires authorization, but the method \"hasRouteAccess\" is not defined in class: " . get_class($class));
+        }
+
+        $reflection = new ReflectionMethod($class, $this->authentication_method);
+
+        if( !$reflection->isPublic() ) {
+            throw new LogicException("The '" . $this->authentication_method . "' method in class " . get_class($class) . " must be public to properly perform access control.");
+        }
+
+        $args = [];
+        if( $this->methodLoader ) {
+            foreach( $reflection->getParameters() as $parameter ) {
+                if( $parameter->getType() instanceof ReflectionNamedType && class_exists($parameter->getType()->getName()) ) {
+                    $args[] = ($this->methodLoader)($parameter->getType()->getName());
+                }
+            }
+        }
+
+        if( $reflection->invokeArgs($class, $args) ) return;
         throw new RouteAccessDenied('Request does not have access to this route');
     }
 
@@ -208,35 +273,34 @@ class Router {
      * Resolve and call route method
      *
      * Will default to index if unable to resolve path to public method.
-     *
-     * @param ReflectionClass<RouteInterface> $reflection
-     * @param RouteInterface $route
-     * @param string[] $method
-     * @param string[] $params
+     * @template T of object
+     * @param ReflectionClass<T> $reflection
+     * @param object $class
+     * @phpstan-param T $class
+     * @param string[] $context
      *
      * @throws ReflectionException
      */
-    private function resolveMethod(
-        ReflectionClass $reflection,
-        RouteInterface  $route,
-        array           $method,
-        array           $params = []
-    ): void {
+    private function resolveClassMethod(ReflectionClass $reflection, object $class, array $context): void {
 
-        # Call route index if path is empty
-        if( empty($method) ) {
-            $this->callRouteMethod($reflection, $route, 'index', $params);
-            return;
+        $params = [];
+
+        while( $context ) {
+
+            # Run method if exists
+            if( $this->callRouteMethod($reflection, $class, implode('_', $context), $params) ) return;
+
+            # Move the last context element to the beginning of the parameter
+            $lastElement = array_pop($context);
+            assert($lastElement !== null);
+            array_unshift($params, $lastElement);
+
         }
 
-        # Run method if exists
-        if( $this->callRouteMethod($reflection, $route, implode('_', $method), $params) ) return;
+        # Call route index if path is empty
+        if( $this->callRouteMethod($reflection, $class, 'index', $params) ) return;
 
-        # Shift end of route to end of parameters
-        array_unshift($params, array_pop($method));
-
-        # @phpstan-ignore-next-line - Try next route
-        $this->resolveMethod($reflection, $route, $method, $params);
+        throw new LogicException('The path matched the route class ' . $reflection->getName() . ', but no "index" method was found. Ensure the route class defines this method.');
 
     }
 
@@ -244,37 +308,66 @@ class Router {
     /**
      * Validate and call route method
      *
-     * @param ReflectionClass<RouteInterface> $reflection
-     * @param RouteInterface $route
-     * @param string $method
+     * @template T of object
+     * @param ReflectionClass<T> $reflection
+     * @param object $class
+     * @phpstan-param T $class
+     * @param string $name
      * @param string[] $params
      *
      * @return bool method has been called
      * @throws ReflectionException
      */
-    private function callRouteMethod(
-        ReflectionClass $reflection,
-        RouteInterface  $route,
-        string          $method,
-        array           $params
-    ): bool {
+    private function callRouteMethod(ReflectionClass $reflection, object $class, string $name, array $params): bool {
 
-        # Never allow direct access to hasRouteAccess method.
-        if( $method === 'hasRouteAccess' ) return false;
+        # Never allow direct access to authorization
+        if( $this->authentication_method && strtolower($name) === strtolower($this->authentication_method) ) return false;
 
-        if( !$reflection->hasMethod($method) ) return false;
+        # Method must exist and be public
+        if( !$reflection->hasMethod($name) ) return false;
 
-        # Route method must be public
-        if( !$reflection->getMethod($method)->isPublic() ) return false;
+        $method = $reflection->getMethod($name);
+
+        if( !$method->isPublic() ) return false;
+
+        # Resolve parameters
+        $args = $this->resolveParameters($method->getParameters(), $params);
 
         # If method has required arguments, we must make sure we have enough parameters to fill them.
-        if( $reflection->getMethod($method)->getNumberOfRequiredParameters() > count($params) ) return false;
+        if( $method->getNumberOfRequiredParameters() > count($args) ) return false;
 
-        # Call route method, pas the parameters
-        $reflection->getMethod($method)->invokeArgs($route, $params);
+        # Call route method, pass the parameters
+        $method->invokeArgs($class, $args);
 
         return true;
 
+    }
+
+
+    /**
+     * @param ReflectionParameter[] $parameters
+     * @param string[] $params
+     * @return array<int, string|object>
+     */
+    private function resolveParameters(array $parameters, array $params): array {
+        $args = [];
+
+        foreach( $parameters as $parameter ) {
+
+            $type_name = $parameter->getType() instanceof ReflectionNamedType ? $parameter->getType()->getName() : null;
+
+            if( $params && $type_name === null ) {
+                $args[] = array_shift($params);
+            } elseif( $params && $type_name === 'string' ) {
+                $args[] = array_shift($params);
+            } elseif( $this->methodLoader && $type_name && class_exists($type_name) ) {
+                // Load any class dependencies via the method loader.
+                $args[] = ($this->methodLoader)($type_name);
+            }
+        }
+
+        // If there are still parameters left, add them for possible variadic parameters.
+        return array_merge($args, $params);
     }
 
 }
