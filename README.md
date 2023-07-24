@@ -12,42 +12,25 @@ Install Rammewerk Router via composer:
 composer require rammewerk/router
 ```
 
-Basic usage
+Basic usage with class-based routing
 ----
-
-In its simple form you can define a route with a closure, like many other routers for PHP:
-
 ```php
 $router = new Rammewerk\Component\Router\Router();
 
-$router->add('/', function() {
-    echo 'Hello index';
-});
+$router->add('/', RouteActions::class);
 
-$router->add('/blog/hello', function() {
-    echo 'Welcome to my blog!';
-});
-
-$router->find( $path );
-```
-
-Or through a class-based route:
-
-```php
-$router = new Rammewerk\Component\Router\Router();
-
-$router->add('/', RouteActions::class, null, false);
-
-$router->find( $path );
+$router->find();
 ```
 
 ```php
 class RouteActions {
 
+    # Handle empty path as well as other unresolved paths.
     public function index(): void {
         echo 'Hello index';
     }
     
+    # Handle paths that starts with '/blog/hello/'
     public function blog_hello(): void {
         echo 'Welcome to my blog!';
     }
@@ -55,73 +38,26 @@ class RouteActions {
 }
 ```
 
-## Understanding the Rammewerk Router Path Handling
+In this class any path called, which is not starting with `/blog/hello/` will be resolved to the `index` method.
 
-The Rammewerk Router has a distinctive approach to path handling that sets it apart from traditional PHP routers. Its
-unique logic allows for more dynamic and flexible routing configurations.
+Closures
+----
 
-### Dynamic Path Matching and Parameter Extraction
-
-When a request comes in, the router initially attempts to match the entire request URL to a defined route. For instance,
-given a request URL like `/product/item/123`, the router will first look for a route matching this exact pattern.
-
-If such a route does not exist, the router doesn't simply throw a "route not found" error. Instead, it employs a
-strategy of "sequential trimming and matching". It starts removing segments from the end of the URL and tries to match
-the trimmed URL to a defined route.
-
-In our example, if `/product/item/123` does not match a defined route, the router will trim the last segment (`123`) and
-try to match `/product/item`. If this doesn't match either, it will trim `item` and try to match `/product`. Finally, if
-no match is found, it will trim `product` and try to match the root route `/`.
-
-### Intelligent Parameter Management
-
-The segments that get trimmed during this process aren't simply discarded. Instead, they're preserved and treated as
-parameters for the matched route, in the order they were in the original request URL.
-
-Let's go back to our example. If a match is found for `/product/item`, the segment `123` that was trimmed earlier is not
-lost. Instead, it becomes the first parameter for the matched route.
-
-These parameters can then be accessed in the handler for that route, allowing you to create dynamic routes where
-segments of the URL path can be used as variables. Here's an example:
+In its simple form you can define a route with a closure, like many other routers for PHP:
 
 ```php
-$router->add('/product/item', function(string $id) {
-    echo "Displaying product item with ID: $id";
+$router->add('/', function() {
+    echo 'Hello index';
+});
+
+$router->add('/blog/hello', function() {
+    echo 'Welcome to my blog!';
 });
 ```
 
-In this scenario, if the user navigates to `/product/item/123`, the router will trigger this route, passing `123` as
-the `$id` parameter.
+## Understanding the path handling
 
-### Fallback Handling for Missing Parameters
-
-What if a parameter is required by the route but the request URL doesn't include it? The Rammewerk Router has a solution
-for this too. If a parameter is missing in the request, you can simply define it as optional by providing a default
-value. This way, even without the parameter, the route is still considered a match.
-
-This combination of dynamic path matching and intelligent parameter management makes the Rammewerk Router a versatile
-and powerful tool for handling complex routing needs in your PHP applications.
-
-## How the router works
-
-#### Handling Different Types of Requests
-
-By default, the router responds to all incoming requests regardless of the HTTP method (such as `GET`, `POST`, etc.)
-they employ. This means that the router does not differentiate between request types out of the box.
-
-However, if you need to differentiate and respond differently based on the HTTP method, a simple wrapper can be created
-to manage this. The wrapper can define routes at runtime, taking into account the type of the incoming request.
-
-This way, you can customize your application's behavior to suit specific needs based on different types of HTTP methods,
-while still leveraging the simplicity and versatility of the router.
-
-Please note that implementing this feature requires a good understanding of HTTP request methods and how to design your
-application to respond appropriately to each type.
-
-### Parameter Access: Key Feature
-
-One key feature that sets our router apart from others is its unique method of parameter handling. Understanding this
-involves grasping how our router maps a route.
+The Router has a distinctive approach to path handling that sets it apart from traditional PHP routers.
 
 #### Route Mapping Mechanism
 
@@ -132,6 +68,8 @@ entire route. If a defined route doesn't exist for `/product/item/123`, it modif
 
 The router starts trimming the path from the end and tries matching again. It first attempts to find a match
 for `/product/item`, then `/product`, and finally `/` if previous attempts were unsuccessful.
+
+This is why an empty route `/` is always required to be added before the router starts finding the path.
 
 #### Parameter Capturing
 
@@ -157,7 +95,33 @@ Remember, if a parameter like `$id` is required but the request doesn't include 
 unmatched. To circumvent this, simply make the parameter optional by setting a default value, as
 shown: `string $id = ''`. This way, even if the parameter is missing in the request, the route remains valid.
 
-#### Handling dependencies
+## Configuring Routes
+
+To add new routes, all you need to do is define the route along with its corresponding function or class. Here's how:
+
+```php
+$router->add('/page', function( ...$params ) {
+    ...
+})
+```
+
+Note that you don't define any parameters in the route setup. Instead, the function or class method you provide decides
+what parameters it needs. When '/page' is visited, the function or method runs with the parameters it has specified.
+
+Here's an example for adding a class-based route:
+
+```php
+$router->add('/page', RouterActions::class )
+```
+
+## Handling Different Types of Requests
+
+The router handles all web requests, no matter what type (like 'GET' or 'POST'). If you need it to react differently
+based on the request type, you can make a wrapper to do that. This helps you to fine-tune your app's actions for
+different web request types. Keep in mind that you need to know about web request types and how to design responses to
+use this feature.
+
+## Handling dependencies
 
 You can define a register a custom way to handle dependencies by registering your dependency injection container:
 
@@ -174,6 +138,8 @@ $router->add("/product/item/", function( ProductController $product, string $id 
     $product->showItem( $id );
 });
 ```
+
+Note that the first given string parameter is the first extracted parameter from a given path.
 
 ## Class-based routing
 
@@ -210,7 +176,7 @@ class ProductRouteActions {
 To register this class, we can define it so:
 
 ```php
-$router->add('/product', ProductRouteActions::class, null, false);
+$router->add('/product', ProductRouteActions::class);
 ```
 
 If we later on wants to add a new product route to handle product update, we could simply add a new method to our class:
@@ -228,34 +194,52 @@ class ProductRouteActions {
 }
 ```
 
-## Custom class loader
+## Setting up a Custom Class Loader (Optional)
 
-There is also an option to add a custom dependency handler for route classes. This is only triggered
-when a Route class is initialized. The Closure are given the ReflectionClass and should respond
-with a fully constructed class of the same type as the ReflectionClass.
+It's possible to customize how route classes handle their dependencies. This is done by using a class dependency loader
+which runs when a route class starts initializing.
+
+This loader receives a `ReflectionClass` object, mirroring the class being loaded. The router already created
+this `ReflectionClass`, saving you processing time. This feature is particularly useful in modular systems for
+inspecting class namespaces and loading the right dependencies.
+
+Here's how to register a custom loader:
 
 ```php
-    $router->registerClassDependencyLoader( function( \ReflectionClass $class) use ($container) {
-        $container->create($class->name);
-    });
+$router->registerClassDependencyLoader( function( \ReflectionClass $class) use ($container) {
+    return $container->create($class->name);
+});
 ```
 
-## Authentication of class based routes
+In this example, `$container->create($class->name);` creates an instance of the class.
 
-If you want to authenticate access to a route before loading the route, you can add a method to the class
-called `hasRouteAccess`. This method used to grant access to the route. If method returns false, the access is blocked,
-or granted if true. To authorize access to a route class, implement the method `hasRouteAccess`. The router will only
-allow requests when `hasRouteAccess` returns `true`.
+Note: This is an optional feature. If you don't set up a custom class loader, the router will use its default
+loader (`$router->registerDependencyLoader`). So, your route classes will still load their dependencies, even without a
+custom class loader.
+
+## Setting Up Route Authentication
+
+For adding authentication checks before a route is accessed, you can define a default method. This method will run for
+every class-based route before it's loaded.
+
+Here's how to register the default method:
 
 ```php
-class BlogRoutes {
+$router->classAuthenticationMethod('hasRouteAccess');
+```
 
-    # Access to any routes in this class is only accepted if this is true.
+Now, the router will run the 'hasRouteAccess' method before it loads any class-based route (note: this doesn't apply to
+closure routes). This method should return `true` or `false`, indicating whether the route should be accessible.
+
+```php
+class SecureBlogRoutes {
+
+    // Access to any route in this class is granted if this returns true.
     public function hasRouteAccess(): bool {
         return ! empty($_SESSION['user_id']);
     }
     
-    # Will only load if hasRouteAccess is true.
+    // This route will only load if 'hasRouteAccess' returns true.
     public function index(): void {
         echo 'Welcome to my secure blog!';
     }
@@ -263,30 +247,11 @@ class BlogRoutes {
 }
 ```
 
-## Adding Routes
+Once you register the default authentication method, every class-based route must implement it. If a route class doesn't
+need authentication, have its 'hasRouteAccess' method return `true`, this will allow all requests to pass.
 
-```php
-$router->add( $path, $handler, $class_method_name, $authenticate)
-```
-
-Accepts 4 parameters:
-
-- `path`: The path to the route.
-- `handler`: The closure or class-string to handle the route.
-- `class_method`: (Optional) Specific method inside a class based router.
-- `authorize`: (Optional) A boolean that determines if the route requires authorization (default: true).
-
-In most cases. The only thing needed to define is the path (parameter #1) and Closure/class-string (parameter #2).
-But there might be cases where you want to have a non-authorized path inside a class-based router where the
-router has implemented a route access authorization. In this case, we can define which method inside the
-class based router to target and to specify that this route should not authorize.
-
-```php
-$router->add('/accounts', AccountRoutes::class, 'info_privacy', false);
-```
-
-The above will only target `/accounts/info/privacy/` and its sub-pages, and will pass these routes through
-the `info_privacy()` method in the `AccountRoutes` class. This route will skip the `hasRouteAccess` check.
+You can catch `RouteAccessDenied` exceptions and handle them according to your application's needs. For example, you may
+want to redirect the user to a login page or show an error message if access is approved.
 
 ## License
 
@@ -296,24 +261,7 @@ Please note that this project is provided "as is" without warranty of any kind, 
 but not limited to, the implied warranties of merchantability and fitness for a particular purpose. The entire risk as
 to the quality and performance of the project is with you.
 
-## Error Handling
-
-You can catch `RouteAccessDenied` exceptions and handle them according to your application's needs. For example, you may
-want to redirect the user to a login page or show an error message.
-
-## Advanced Usage
-
-Advanced features include a custom loading mechanism for your routes by providing a callback function to the Router's
-constructor. This allows you to, for example, integrate the Router with your dependency injection system.
-
-Please see the `Router` class for more details.
-
 ## Support
 
 If you are having any issues, please let us know. Email at [support@rammewerk.com](mailto:support@rammewerk.com) or open
 an issue.
-
-
-
-
-

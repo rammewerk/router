@@ -68,17 +68,6 @@ class Router {
     /**
      * Adds a new route to the application.
      *
-     * This method is used to define a new route path, its handling mechanism, route class method,
-     * and authorization status in the application. The route handler that will be used to manage
-     * requests to this path. This could be a closure function or a class name (string) where the
-     * class is expected to have a method to handle the route.
-     *
-     * The class method and authorize params are only used for class based routing, and not for
-     * closures. If class method is defined, it will not resolve class method automatically.
-     *
-     * Authorize parameter is to check whether the router should look for and validate request
-     * through the register class authentication method on the class.
-     *
      * @param string $path
      * @param Closure():void|class-string $handler The route handler to manage requests to this path.
      */
@@ -100,12 +89,15 @@ class Router {
      *
      * The method locates a route using the input path and initiates its handler.
      *
-     * @param string $path The route path to locate.
+     * @param string|null $path The route path to locate.
      *
-     * @throws Error\RouteAccessDenied If a route class is defined and access is not given
-     * @throws LogicException If the default route "/" is not defined.
+     * @throws RouteAccessDenied If a route class is defined and access is not given
      */
-    public function find(string $path): void {
+    public function find(string $path = null): void {
+
+        if( is_null($path) ) {
+            $path = trim(parse_url($_SERVER['REQUEST_URI'] ?? '', \PHP_URL_PATH) ?: '', '/');
+        }
 
         # Require a default route to be set
         if( !isset($this->routes['/']) ) {
