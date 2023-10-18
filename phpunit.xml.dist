@@ -2,7 +2,6 @@
 
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
-         backupGlobals="false"
          colors="true"
          bootstrap="vendor/autoload.php"
          failOnRisky="true"
@@ -14,7 +13,7 @@
     </php>
 
     <testsuites>
-        <testsuite name="Rammewerk Environment Component Test Suite">
+        <testsuite name="Rammewerk Router Component Test Suite">
             <directory>./tests/</directory>
         </testsuite>
     </testsuites>

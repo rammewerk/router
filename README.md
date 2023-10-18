@@ -14,6 +14,7 @@ composer require rammewerk/router
 
 Basic usage with class-based routing
 ----
+
 ```php
 $router = new Rammewerk\Component\Router\Router();
 
@@ -34,7 +35,7 @@ class RouteActions {
     public function blog_hello(): void {
         echo 'Welcome to my blog!';
     }
-    
+      
 }
 ```
 
@@ -53,6 +54,19 @@ $router->add('/', function() {
 $router->add('/blog/hello', function() {
     echo 'Welcome to my blog!';
 });
+```
+
+Handling response from route
+----
+You can also return value from route if you'd like to incorporate a response handler or similar.
+
+```php
+$router->add('/', function(): string {
+    return 'Hello index';
+});
+
+# Value will be whatever the route returns
+$value = $router->find();
 ```
 
 ## Understanding the path handling
