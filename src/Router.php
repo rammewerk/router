@@ -254,7 +254,7 @@ class Router {
         $args = [];
         if( $this->methodLoader ) {
             foreach( $reflection->getParameters() as $parameter ) {
-                if( $parameter->getType() instanceof ReflectionNamedType && class_exists( $parameter->getType()->getName() ) ) {
+                if( $parameter->getType() instanceof ReflectionNamedType && $this->classExists( $parameter->getType()->getName() ) ) {
                     $args[] = ($this->methodLoader)( $parameter->getType()->getName() );
                 }
             }
@@ -385,7 +385,7 @@ class Router {
                 $args[] = array_shift( $params );
             } elseif( $params && $type_name === 'int' ) {
                 $args[] = (int)array_shift( $params );
-            } elseif( $this->methodLoader && $type_name && class_exists( $type_name ) ) {
+            } elseif( $this->methodLoader && $type_name && $this->classExists( $type_name ) ) {
                 // Load any class dependencies via the method loader.
                 $args[] = ($this->methodLoader)( $type_name );
             }
@@ -393,6 +393,10 @@ class Router {
 
         // If there are still parameters left, add them for possible variadic parameters.
         return array_merge( $args, $params );
+    }
+
+    private function classExists(string $class): bool {
+        return class_exists( $class ) || interface_exists( $class );
     }
 
 }
