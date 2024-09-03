@@ -4,6 +4,7 @@ namespace Rammewerk\Component\Router\Tests;
 
 use PHPUnit\Framework\TestCase;
 use Rammewerk\Component\Router\Error\RouteAccessDenied;
+use Rammewerk\Component\Router\Error\RouteNotFound;
 use Rammewerk\Component\Router\Router;
 
 class RouterTest extends TestCase {
@@ -109,5 +110,12 @@ class RouterTest extends TestCase {
         $this->assertEquals( $same, $value );
     }
 
+    public function testNoAutoResolve(): void {
+        $this->expectException( RouteNotFound::class );
+        $router = clone $this->router;
+        $router->autoResolve( false );
+        $router->add( '/', RouterTestClass::class );
+        $router->find( "/check/testing/too/many/parameters" );
+    }
 
 }

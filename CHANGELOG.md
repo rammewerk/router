@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+0.6.0
+---
+
+* Added a way to require that number of parameters must match the number of parameters in the route. Use
+  `$route->autoResolve(false);`
+
 0.5.0
 ---
 

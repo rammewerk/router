@@ -4,6 +4,7 @@ namespace Rammewerk\Component\Router;
 
 use Closure;
 use LogicException;
+use Rammewerk\Component\Router\Error\RouteNotFound;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionFunction;
@@ -24,6 +25,7 @@ class Router {
     private array $routes = [];
 
     private ?string $authentication_method = null;
+    private bool $auto_resolve = true;
 
 
     /**
@@ -64,6 +66,16 @@ class Router {
         $this->authentication_method = $method;
     }
 
+    /**
+     * Register if route should auto resolve parameters
+     *
+     * @param bool $auto_resolve
+     * @return void
+     */
+    public function autoResolve(bool $auto_resolve): void {
+        $this->auto_resolve = $auto_resolve;
+    }
+
 
     /**
      * Adds a new route to the application.
@@ -93,6 +105,7 @@ class Router {
      *
      * @return mixed The called route method or closure response
      * @throws RouteAccessDenied If a route class is defined and access is not given
+     * @throws RouteNotFound
      */
     public function find(string $path = null): mixed {
 
@@ -122,6 +135,7 @@ class Router {
      * @return mixed The called route method response
      * @throws ReflectionException
      * @throws Error\RouteAccessDenied
+     * @throws RouteNotFound
      */
     private function resolvePath(array $paths): mixed {
 
@@ -137,6 +151,7 @@ class Router {
                     # Try to load the route with the current context
                     return $this->loadRouteHandler( $path, $handler, $context );
                 } catch( ArgumentCountError ) {
+                    if( !$this->auto_resolve ) throw new RouteNotFound( $path );
                     # If ArgumentCountError is caught, continue with next iteration to treat it as an unresolved path
                 }
             }
@@ -149,7 +164,12 @@ class Router {
         }
 
         # Load the default route handler if no match is found in the loop
-        return $this->loadRouteHandler( '/', $this->routes['/'], $context );
+        try {
+            return $this->loadRouteHandler( '/', $this->routes['/'], $context );
+        } catch( ArgumentCountError $e ) {
+            if( !$this->auto_resolve ) throw new RouteNotFound( '/' );
+            throw $e;
+        }
 
     }
 
@@ -345,6 +365,7 @@ class Router {
      * @param ReflectionMethod $method
      * @param string[] $params
      * @return object[]|string[]|null
+     * @throws ArgumentCountError
      */
     private function createParameters(ReflectionMethod $method, array $params): ?array {
         # Resolve parameters
@@ -371,28 +392,42 @@ class Router {
      * @param ReflectionParameter[] $parameters
      * @param string[] $params
      * @return array<int, string|object>
+     * @throws ArgumentCountError
      */
     private function resolveParameters(array $parameters, array $params): array {
         $args = [];
 
         foreach( $parameters as $parameter ) {
 
-            $type_name = $parameter->getType() instanceof ReflectionNamedType ? $parameter->getType()->getName() : null;
+            $type = $parameter->getType();
+            $type_name = $type instanceof ReflectionNamedType ? $type->getName() : null;
 
-            if( $params && $type_name === null ) {
-                $args[] = array_shift( $params );
-            } elseif( $params && $type_name === 'string' ) {
+            if( $params && ($type_name === null || $type_name === 'string') ) {
                 $args[] = array_shift( $params );
             } elseif( $params && $type_name === 'int' ) {
                 $args[] = (int)array_shift( $params );
+            } elseif( $params && $type_name === 'float' ) {
+                $args[] = (float)array_shift( $params );
             } elseif( $this->methodLoader && $type_name && $this->classExists( $type_name ) ) {
                 // Load any class dependencies via the method loader.
                 $args[] = ($this->methodLoader)( $type_name );
+            } elseif( $params && $parameter->isVariadic() ) {
+                /** @noinspection SlowArrayOperationsInLoopInspection SlowArrayOperationsInLoopInspection */
+                $args = array_merge( $args, $params );
+                $params = [];
             }
+
         }
 
         // If there are still parameters left, add them for possible variadic parameters.
-        return array_merge( $args, $params );
+        if( $this->auto_resolve ) return array_merge( $args, $params );
+
+        if( !empty( $params ) ) {
+            throw new ArgumentCountError( "The route has mismatching parameter counts." );
+        }
+
+        return $args;
+
     }
 
     private function classExists(string $class): bool {
