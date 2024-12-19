@@ -14,6 +14,7 @@ use ReflectionNamedType;
 use ReflectionParameter;
 
 use Rammewerk\Component\Router\Error\RouteAccessDenied;
+use const PHP_URL_PATH;
 
 class Router {
 
@@ -107,10 +108,10 @@ class Router {
      * @throws RouteAccessDenied If a route class is defined and access is not given
      * @throws RouteNotFound
      */
-    public function find(string $path = null): mixed {
+    public function find(?string $path = null): mixed {
 
         if( is_null( $path ) ) {
-            $path = trim( parse_url( $_SERVER['REQUEST_URI'] ?? '', \PHP_URL_PATH ) ?: '', '/' );
+            $path = trim( parse_url( $_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH ) ?: '', '/' );
         }
 
         # Require a default route to be set

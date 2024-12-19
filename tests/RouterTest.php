@@ -2,10 +2,12 @@
 
 namespace Rammewerk\Component\Router\Tests;
 
+use Closure;
 use PHPUnit\Framework\TestCase;
 use Rammewerk\Component\Router\Error\RouteAccessDenied;
 use Rammewerk\Component\Router\Error\RouteNotFound;
 use Rammewerk\Component\Router\Router;
+use ReflectionClass;
 
 class RouterTest extends TestCase {
 
@@ -26,10 +28,10 @@ class RouterTest extends TestCase {
 
         // We can't directly check the added route due to its private property status.
         // So, we will use Reflection to check if our route was added.
-        $routerReflection = new \ReflectionClass( $this->router );
+        $routerReflection = new ReflectionClass( $this->router );
         $routesPropertyReflection = $routerReflection->getProperty( 'routes' );
 
-        /** @var array<string, \Closure> $routes */
+        /** @var array<string, Closure> $routes */
         $routes = $routesPropertyReflection->getValue( $this->router );
 
         $this->assertArrayHasKey( $routePath, $routes );
