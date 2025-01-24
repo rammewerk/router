@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+0.9.1
+---
+
+- Deferred regex generation until needed
+
 0.9.0
 ---
 
