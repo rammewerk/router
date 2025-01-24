@@ -60,22 +60,13 @@ class Router {
     public function add(string $pattern, Closure|string $handler): RouteInterface {
 
         $pattern = trim($pattern, '/');
-        $baseSegment = explode('/', $pattern, 2)[0];
 
-        // Convert segments '*' => '([^/]+)' otherwise preg_quote()
-        $segments = array_map(
-            static fn(string $p) => $p === '*' ? '([^/]+)' : preg_quote($p, '#'),
-            explode('/', $pattern),
-        );
-
-        // Join segments and then allow trailing leftover
-        $regex = '#^' . implode('/', $segments) . '(?:/(.*))?$#';
-
-        $route = new RouteDefinition($regex, $handler);
+        $route = new RouteDefinition($pattern, $handler);
 
         // If grouping, also attach route here
         $this->active_group?->registerRoute($route);
 
+        $baseSegment = explode('/', $pattern, 2)[0];
         return $this->routes[$baseSegment][] = $route;
 
     }
@@ -128,10 +119,10 @@ class Router {
         }
 
         // Sort by regex length (desc) so longer patterns match first
-        usort($this->routes[$baseSegment], static fn($a, $b) => strlen($b->regex) <=> strlen($a->regex));
+        usort($this->routes[$baseSegment], static fn($a, $b) => strlen($b->regex()) <=> strlen($a->regex()));
 
         foreach ($this->routes[$baseSegment] as $route) {
-            if (preg_match($route->regex, $pattern, $matches)) {
+            if (preg_match($route->regex(), $pattern, $matches)) {
 
                 $route->setMatchesFromPath($matches);
 

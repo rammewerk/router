@@ -25,13 +25,16 @@ final class RouteDefinition implements RouteInterface {
     public private(set) ?string $default_method = null;
 
 
+    private ?string $regex_cache = null;
+
+
 
     /**
-     * @param string $regex
+     * @param string $pattern
      * @param class-string|Closure $handler
      */
     public function __construct(
-        public string $regex,
+        public string $pattern,
         public string|Closure $handler,
     ) {}
 
@@ -85,6 +88,15 @@ final class RouteDefinition implements RouteInterface {
     public function defaultMethod(string $method_name): RouteInterface {
         $this->default_method = $method_name;
         return $this;
+    }
+
+
+
+    public function regex(): string {
+        return $this->regex_cache ?? $this->regex_cache = '#^' . implode('/', array_map(
+                static fn(string $p) => $p === '*' ? '([^/]+)' : preg_quote($p, '#'),
+                explode('/', $this->pattern),
+            )) . '(?:/(.*))?$#';
     }
 
 
