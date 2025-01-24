@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+0.9.0
+---
+
+* Huge refactoring of the codebase, making it more maintainable and easier to extend.
+* Please see the README for more information.
+
 0.6.0
 ---
 
