@@ -1,0 +1,8 @@
+/.* export-ignore
+/tests export-ignore
+/vendor export-ignore
+CHANGELOG.md export-ignore
+docker-compose.yml export-ignore
+index.php export-ignore
+phpstan.neon.dist export-ignore
+phpunit.xml.dist export-ignore

@@ -1,2 +1,5 @@
 parameters:
     level: max
+    ignoreErrors:
+    		-
+    			identifier: catch.neverThrown

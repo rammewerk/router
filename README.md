@@ -1,281 +1,477 @@
-# Rammewerk Router
+Rammewerk Router
+====
 
-The **Rammewerk Router** is a PHP routing library. It lets you manage routes in your web app and includes features like
-class-based routing and custom parameter management. It's compatible with custom dependency injection systems too. It
-helps in creating dynamic and secure routing systems, making it easy to use for both new and experienced developers.
+Rammewerk Router takes a fresh approach to PHP routing. Built for PHP 8.4, it’s lightweight, flexible, and built around
+class-based routing.
 
-## Installation
+With features like type-safe parameters, dependency injection support, and middleware, it gives you powerful tools
+without unnecessary complexity. Minimal code, minimal configuration - just check out the code yourself.
+
+#### Key Features:
+
+- **Class-Based Routing**: Organize routes cleanly and intuitively.
+- **Type-Safe Parameters**: Let the router handle types and dependencies for you.
+- **Middleware Support**: Add functionality like authentication or logging.
+- **Minimal & Focused**: Designed to do one thing well without unnecessary complexity.
+
+## Table of Contents
+
+- [Project Goals](#-project-goals)
+- [Getting started](#-getting-started)
+    - [Install](#install)
+    - [Requirements](#requirements)
+    - [Usage](#usage)
+- [Basic Routing](#-basic-routing)
+- [Class-based Routing](#-class-based-routing)
+    - [Define Subpaths with Class Methods](#define-subpaths-with-class-methods)
+    - [Dynamic Path Segments](#dynamic-path-segments)
+    - [Wildcard parameters](#wildcard-parameters)
+    - [Parameter class dependencies](#parameter-class-dependencies)
+    - [Binding a Path to a Specific Method](#binding-a-path-to-a-specific-method)
+    - [Wrapping Up Class-Based Routing](#wrapping-up-class-based-routing)
+- [Dependency Injection](#-dependency-injection)
+- [Middleware](#-middleware)
+    - [Request Handling](#request-handling)
+    - [Group Middleware](#group-middleware)
+    - [Wrapping Up Middleware](#wrapping-up-middleware)
+- [Dispatching and Response](#-dispatching-and-response)
+- [Method-Specific Request Handling](#-method-specific-request-handling)
+- [Powerful Parameter Handling](#-powerful-parameter-handling)
+- [Performance and Speed](#-performance-and-speed)
+- [Closure-Based Routes](#-closure-based-routes)
+- [PSR-7 & PSR-15 Support](#-psr-7--psr-15-support)
+
+## 🎯 Project Goals
+
+These goals reflect what Rammewerk strives to achieve across all its components:
+
+- **Lightweight & Fast**: Small, focused and compact library with zero bloat, built for speed.
+- **Plug-and-Play**: Works out of the box with minimal configuration.
+- **Minimal & Understandable**: Simple code that’s easy to read, adapt, and even rewrite for your own projects.
+- **Flexible by Design**: Add your own implementations and customize it to suit your needs.
+- **Open for Collaboration**: Fork it, explore it, and contribute back with pull requests!
+
+By using Rammewerk, you get a minimal yet powerful foundation that’s easy to build on and improve. Let’s dive in! 🔧✨
+
+## 🚀 Getting Started
+
+### Install
 
 Install Rammewerk Router via composer:
 
-```
+```bash
 composer require rammewerk/router
 ```
 
-Basic usage with class-based routing
-----
+### Requirements
+
+- Requires PHP 8.4+.
+- Server must route all requests to a single PHP file (e.g., index.php) using Caddy, Nginx, or Apache.
+- Use a Dependency Injection container like [Rammewerk Container](https://github.com/rammewerk/container) for managing
+  class instances.
+
+### Usage
 
 ```php
-$router = new Rammewerk\Component\Router\Router();
+use Rammewerk\Router\Router;
 
-$router->add('/', RouteActions::class);
+// Create Router with a closure to handle construction of class instances
+$router = new Router( static fn( string $class) => $container->get($class) );
 
-$router->find();
+// Define routes
+// ...
+
+// Go!
+$router->dispatch();
 ```
 
-```php
-class RouteActions {
+## 🧭 Basic Routing
 
-    # Handle empty path as well as other unresolved paths.
-    public function index(): void {
-        echo 'Hello index';
+While the Rammewerk Router is designed for class-based routing, it also supports closures.
+
+Here’s a simple example:
+
+```php
+$router->add('/hello', function() {
+    return 'Hello World!';
+});
+```
+
+This matches `/hello`, triggers the closure, and returns “Hello World!”
+
+## 🏗️ Class-based Routing
+
+Class-based routing is the core feature of Rammewerk Router. It maps paths and their nested routes directly to a class,
+making it both powerful and flexible.
+
+Here’s how it works:
+
+```php
+$router->add('/profile', ProfileRoute::class);
+```
+
+With this setup, the `ProfileRoute` class will handle all requests to `/profile` (and its sub-paths, unless overridden
+by other routes).
+
+Here’s an example of a simple class for the `/profile` path:
+
+```php
+namespace Routes;
+
+class ProfileRoute {
+
+    public function index(): string {
+        return 'You visited /profile';
     }
-    
-    # Handle paths that starts with '/blog/hello/'
-    public function blog_hello(): void {
-        echo 'Welcome to my blog!';
-    }
-      
+
 }
 ```
 
-In this class any path called, which is not starting with `/blog/hello/` will be resolved to the `index` method.
+The `index()` method is the default handler for the base path of a class-based route. In this case, accessing `/profile`
+triggers the `index()` method.
 
-Closures
-----
-
-In its simple form you can define a route with a closure, like many other routers for PHP:
+If needed, you can set a change default method during initialization or on a per-route basis:
 
 ```php
-$router->add('/', function() {
-    echo 'Hello index';
-});
+// Global override for all class-based routes
+$router = new Router( default_method: 'show' );
 
-$router->add('/blog/hello', function() {
-    echo 'Welcome to my blog!';
-});
+// Override for a single route
+$roter->add(...)->defaultMethod('show');
 ```
 
-Handling response from route
-----
-You can also return value from route if you'd like to incorporate a response handler or similar.
+In this case, a `show()` method will handle base path requests. If default method isn’t defined in class, accessing
+`/profile` will throw an `InvalidRoute` exception.
+
+You can also define class routes with a single `__invoke()` method. This will be called if no other method matches or is
+defined. The `__invoke()` method is best used when the class doesn’t have additional route methods, keeping it simple
+and focused.
+
+### Define Subpaths with Class Methods
+
+To handle a path like `/profile/settings/notifications`, simply add a method to your class matching the subpath
+structure:
 
 ```php
-$router->add('/', function(): string {
-    return 'Hello index';
-});
+class ProfileRoute {
 
-# Value will be whatever the route returns
-$value = $router->find();
-```
+    // Previous methods
 
-## Understanding the path handling
-
-The Router has a distinctive approach to path handling that sets it apart from traditional PHP routers.
-
-#### Route Mapping Mechanism
-
-Consider a request made to the URL `/product/item/123`. The router initiates its search by attempting to match the
-entire route. If a defined route doesn't exist for `/product/item/123`, it modifies its search strategy.
-
-#### Sequential Trimming and Matching
-
-The router starts trimming the path from the end and tries matching again. It first attempts to find a match
-for `/product/item`, then `/product`, and finally `/` if previous attempts were unsuccessful.
-
-This is why an empty route `/` is always required to be added before the router starts finding the path.
-
-#### Parameter Capturing
-
-Each trimmed segment from the path is added to the parameters list, in the sequence it appears in the requested path.
-So, if the route `/product/item` is a valid one, then `123` is captured as the first parameter.
-
-#### Accessing Parameters in Code
-
-To tap into these parameters, define a `string` parameter within the callback or class method. Here is a PHP example for
-better understanding:
-
-```php
-$router->add('/product/item', function(string $id) {
-    echo "Showing product item with ID: $id";
-});
-```
-
-In this scenario, `123` is passed to the `$id` parameter when the route `/product/item/123` is requested.
-
-#### Handling Unmatched Routes
-
-Remember, if a parameter like `$id` is required but the request doesn't include it, the router will consider the route
-unmatched. To circumvent this, simply make the parameter optional by setting a default value, as
-shown: `string $id = ''`. This way, even if the parameter is missing in the request, the route remains valid.
-
-## Configuring Routes
-
-To add new routes, all you need to do is define the route along with its corresponding function or class. Here's how:
-
-```php
-$router->add('/page', function( ...$params ) {
-    ...
-})
-```
-
-Note that you don't define any parameters in the route setup. Instead, the function or class method you provide decides
-what parameters it needs. When '/page' is visited, the function or method runs with the parameters it has specified.
-
-Here's an example for adding a class-based route:
-
-```php
-$router->add('/page', RouterActions::class )
-```
-
-## Handling Different Types of Requests
-
-The router handles all web requests, no matter what type (like 'GET' or 'POST'). If you need it to react differently
-based on the request type, you can make a wrapper to do that. This helps you to fine-tune your app's actions for
-different web request types. Keep in mind that you need to know about web request types and how to design responses to
-use this feature.
-
-## Handling dependencies
-
-You can define a register a custom way to handle dependencies by registering your dependency injection container:
-
-```php
-$router->registerDependencyLoader( function( string $class_name ) => use($container) {
-    return $container->create($class_name);
-});
-```
-
-Once registered it allows adding dependencies to other classes:
-
-```php
-$router->add("/product/item/", function( ProductController $product, string $id ) {
-    $product->showItem( $id );
-});
-```
-
-Note that the first given string parameter is the first extracted parameter from a given path.
-
-## Class-based routing
-
-What makes this router unique, is its ability to define one or multiple classes that handle routes, based on its public
-methods.
-
-It's offer a quick way to work with routing.
-
-Let's define a simple Route class that handles all routes that starts with `/product/`:
-
-```php
-namespace Module\Product;
-
-class ProductRouteActions {
-
-    # Will handle /product/
-    public function index(): void {
-        echo 'Default product page when visiting base level of route: /';
+    public function settings_notifications(): string {
+        return 'You visited /profile/settings/notifications';
     }
-    
-    # Will handle /product/item/{id}
-    public function item( string $id ): void {
-        echo "Implement loading of product item with id $id";
-    }
-    
-    # Will handle /product/list/all/
-    public function list_all(): void {
-        echo "Implement list of all products"
-    }
-    
+
 }
 ```
 
-To register this class, we can define it so:
+Each segment after the base path (`/profile`) maps to a method, with subpath segments replaced by underscores (`_`).
+
+### Dynamic Path Segments
+
+You can define dynamic subpaths by adding parameters to your method:
 
 ```php
-$router->add('/product', ProductRouteActions::class);
-```
+class ProfileRoute {
 
-If we later on wants to add a new product route to handle product update, we could simply add a new method to our class:
-
-```php
-class ProductRouteActions {
-
-    ...
-    
-    # Will handle /product/update/{id}
-    public function update( string $id ): void {
-        # Handle product update for product of ID = $id
+    public function edit( int $id ): string {
+        return "You visited /profile/edit/$id";
     }
-    
+
 }
 ```
 
-## Setting up a Custom Class Loader (Optional)
+Accessing `/profile/edit/123` triggers the `edit()` method with the parameter `$id` = `123`.
 
-It's possible to customize how route classes handle their dependencies. This is done by using a class dependency loader
-which runs when a route class starts initializing.
+### Wildcard parameters
 
-This loader receives a `ReflectionClass` object, mirroring the class being loaded. The router already created
-this `ReflectionClass`, saving you processing time. This feature is particularly useful in modular systems for
-inspecting class namespaces and loading the right dependencies.
-
-Here's how to register a custom loader:
+Additionally, you can use wildcard parameters (`*`) to map subpaths to parameters. For example, handling
+`/profile/123/edit` can be done like this:
 
 ```php
-$router->registerClassDependencyLoader( function( \ReflectionClass $class) use ($container) {
-    return $container->create($class->name);
-});
+$router->add('/profile/*/edit', ProfileEditRoute::class);
 ```
 
-In this example, `$container->create($class->name);` creates an instance of the class.
+Wildcard parameters are mapped in order, alongside subpaths. For example, `/profile/123/edit/notification` results in
+parameters `123` and `notification`.
 
-Note: This is an optional feature. If you don't set up a custom class loader, the router will use its default
-loader (`$router->registerDependencyLoader`). So, your route classes will still load their dependencies, even without a
-custom class loader.
+**Notes:**
 
-## Setting Up Route Authentication
+- Parameter names don’t matter, but their order does.
+- If a parameter isn’t in the path, it must be **optional** or **nullable** to match.
+- Type hints are supported, and path segments are converted to match (`int`, `float`, `bool`, `string`). Undefined or
+  mixed defaults to string.
+- Parameters that can't convert to defined type are rejected, and route won't match.
+- Paths must match exactly. For example, `/profile/edit/123` won’t match `/profile/edit/123/something`.
+- Use a variadic parameter (`...$args`) to allow extra subpaths to match.
 
-For adding authentication checks before a route is accessed, you can define a default method. This method will run for
-every class-based route before it's loaded.
+### Parameter class dependencies
 
-Here's how to register the default method:
-
-```php
-$router->classAuthenticationMethod('hasRouteAccess');
-```
-
-Now, the router will run the 'hasRouteAccess' method before it loads any class-based route (note: this doesn't apply to
-closure routes). This method should return `true` or `false`, indicating whether the route should be accessible.
+You can use classes as parameters, and the router will resolve them via the dependency handler set during
+initialization:
 
 ```php
-class SecureBlogRoutes {
-
-    // Access to any route in this class is granted if this returns true.
-    public function hasRouteAccess(): bool {
-        return ! empty($_SESSION['user_id']);
+class ProfileRoute {
+    public function edit( Profile $profile, Template $template, int $id ): Response {
+        $user = $profile->find($id);
+        return $template->render('profile/edit', [$user]);
     }
-    
-    // This route will only load if 'hasRouteAccess' returns true.
-    public function index(): void {
-        echo 'Welcome to my secure blog!';
-    }
-    
 }
 ```
 
-Once you register the default authentication method, every class-based route must implement it. If a route class doesn't
-need authentication, have its 'hasRouteAccess' method return `true`, this will allow all requests to pass.
+The order of class dependencies doesn’t matter, but parameters extracted from the path must be in the correct order.
 
-You can catch `RouteAccessDenied` exceptions and handle them according to your application's needs. For example, you may
-want to redirect the user to a login page or show an error message if access is approved.
+### Binding a Path to a Specific Method
 
-## License
+You can bind a route to a specific method in its class by defining the method in the route definition:
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```php
+$router->add(...)->method('edit');
+```
 
-Please note that this project is provided "as is" without warranty of any kind, either expressed or implied, including,
-but not limited to, the implied warranties of merchantability and fitness for a particular purpose. The entire risk as
-to the quality and performance of the project is with you.
+This ensures the `edit()` method of the `ProfileRoute` class is always called when `/profile/settings` is accessed.
 
-## Support
+### Wrapping Up Class-Based Routing
 
-If you are having any issues, please let us know. Email at [support@rammewerk.com](mailto:support@rammewerk.com) or open
-an issue.
+Less configuration? Checked! 🎉 Class-based routing keeps things straightforward. Adding new routes is as easy as
+defining methods in your handler
+classes. With type safety, support for required and optional parameters, and the flexibility of wildcards, you can build
+routes that adapt to your needs without unnecessary complexity.
+
+---
+
+## 📦 Dependency Injection
+
+To manage dependencies for class-based and closure-based routes, as well as middleware, the router requires a dependency
+resolver. You *must* set this up during initialization by passing a closure to the constructor. This closure receives a
+class name and returns an instance of that class.
+
+> For a simple and efficient solution, check out [Rammewerk Container](https://github.com/rammewerk/container).
+
+```php
+$router = new Router( static fn( string $class_string ) => $container->create($class_string) );
+```
+
+This approach keeps your routes clean and ensures seamless dependency handling.
+
+## 🛡️ Middleware
+
+Middleware adds functionality to your routes, like authentication, logging, or caching, without cluttering your route
+classes. It acts as a layer that processes requests before they reach your route handler or modifies responses
+afterward.
+
+Here’s how to add middleware to a route:
+
+```php
+$router->add('/', HomeRoutes::class)->middleware([
+    AuthMiddleware::class,
+    LoggerMiddleware::class,
+]);
+```
+
+Middleware runs in the order it’s defined. Each middleware must have a handle method that processes the request and
+calls the next closure to continue:
+
+```php
+class AuthMiddleware {
+    public function handle(Request $request, \Closure $next) {
+        // Do auth stuff
+        return $next($request);
+    }
+}
+```
+
+**Note**: Even though the request object is optional (`object|null`), your middleware must define it as the first
+parameter of the `handle()` method. The `handle()` method **must always** receive two arguments: the given request
+object (or
+null) and the next closure to call.
+
+> Rammewerk Router also supports PSR-15 MiddlewareInterface. See [PSR-15 Support](#-psr-7--psr-15-support) for more
+> information.
+
+### Request Handling
+
+The router passes a request object to each middleware and the route handler. The request type is flexible; you can
+pass any object during dispatch:
+
+```php
+$router->dispatch('/profile', new ServerRequest());
+```
+
+While optional, it’s good practice to type-hint the request in your handle method and ensure it matches the request
+class passed during dispatch.
+
+> Rammewerk Router also supports PSR-7 ServerRequestInterface. See [PSR-7 Support](#-psr-7--psr-15-support) for more
+
+### Group Middleware
+
+Use the `group()` method to apply middleware to multiple routes at once. This keeps your code clean and avoids
+repetitive middleware declarations.
+
+Here’s an example:
+
+```php
+$router->group(function(Router $r) {
+    $r->add('/products', ProductRoutes::class);
+    $r->add('/users', fn() => 'Users listing');
+})->middleware([
+    AuthMiddleware::class,
+    LoggerMiddleware::class
+]);
+```
+
+In this example, both `/products` and `/users` routes share the same middleware (`AuthMiddleware` and
+`LoggerMiddleware`), applied in the defined order.
+
+If you define middleware on a route inside the group, it will run **before** the group’s middleware:
+
+```php
+$r->group(function (Router $r) {
+    $r->add('/products', ProductRoutes::class)->middleware([AuthMiddleware::class]);
+    // More routes
+})->middleware([LoggerMiddleware::class]);
+```
+
+Here, `AuthMiddleware` runs first for `/products`, followed by `LoggerMiddleware` from the group. This lets you control
+the middleware order for each route.
+
+### Wrapping Up Middleware
+
+Little configuration? Checked! 🎉 Middleware in the router is flexible and straightforward, letting you add layers to
+your routes without overcomplicating things. You’re free to implement middleware however you like — no restrictions on
+which request class to use or how to handle it.
+
+---
+
+## 🚀 Dispatching and Response
+
+Dispatching routes is simple: just call the dispatch method on your router instance.
+
+```php
+try {
+    $response = $router->dispatch( path: '/', serverRequest: $request );
+    // Handle response
+} catch (InvalidRoute $e) {
+    // Handle 404 errors or log unmatched paths
+} catch (Throwable $e) {
+    // Handle other application errors, or let it bubble up
+}
+```
+
+- The path parameter is matched against your routes. If no match is found, an InvalidRoute exception is thrown, letting
+  you handle 404s or similar responses.
+- The request parameter is optional and passes a request object to middleware and route handlers for processing.
+- The response is returned from the dispatch method, which can be any type. It’s up to you to handle it in your
+  application.
+
+## 🚦 Method-Specific Request Handling
+
+This router doesn’t predefine request types like `GET` or `POST`. It simply passes any request to the route. If you want
+to implement a `get()`/`post()`/`delete()` style structure, you can achieve it by adding a wrapper or using middleware
+to handle specific request methods. This gives you full flexibility to define request handling as you see fit.
+
+## 🧩 Powerful Parameter Handling
+
+This router shines with its robust and flexible parameter system:
+
+- **Type-safe & Intuitive**: Supports type hints, union types, and automatic conversion for seamless parameter handling.
+- **Dependency-Friendly**: Reflects parameters in methods and closures, allowing seamless integration with your own DI
+  container for maximum flexibility and adaptability.
+- **Wildcard Simplicity**: Use * to capture dynamic segments - no regex needed, and parameter types ensure effortless
+  refactoring and clarity.
+  -** No Dictated Names**: Parameters don’t rely on specific names, giving you freedom and flexibility.
+
+This level of type safety, combined with flexible wildcards, is rare in other routers. It’s designed to make routing
+both powerful and effortless! 🚀
+
+## ⚡ Performance and Speed
+
+Rammewerk Router is designed to stay lean and move fast.
+
+1. It uses simple arrays to store routes and quickly narrows down
+   matching paths by comparing only relevant segments.
+2. Regex patterns are sorted by length so more specific routes are
+   tested first.
+3. Reflection is only performed once a route is confirmed, so there’s no overhead for routes that don’t match
+4. With minimal internal complexity, no bulky dependencies, and a single-file core, the router focuses on doing one job
+   well without slowing you
+   down in production.
+
+> Integrating [Rammewerk Container](https://github.com/rammewerk/container) can boost speed even more, thanks to its
+> lazy-loading approach. It’s also one of the fastest DI containers out there, as shown in benchmarks.
+
+## 🪶 Closure-Based Routes
+
+While class-based routing is the core feature of Rammewerk Router, closure-based routes can be useful for simple,
+standalone handlers or quick prototypes.
+
+These routes still benefit from the same powerful parameter handling as
+class-based routes, including dependency injection of classes and type-hinted subpath parameters. Middleware can also be
+applied seamlessly to closure-based routes, ensuring consistent behavior across your application.
+
+Here’s an example:
+
+```php
+// Define a closure-based route with parameter handling and middleware
+$router->add('/greet', function (string $name, Logger $logger): string {
+  $logger->info("Greeting user: $name");
+  return "Hello, $name!";
+})->middleware([
+    AuthMiddleware::class,
+]);
+
+// Dispatch the router
+$router->dispatch('/greet/John', new Request());
+```
+
+Key Points:
+
+- **Parameter Handling**: Subpath parameters like {name} are automatically resolved and type-checked.
+- **Dependency Injection**: Classes like Logger are injected via the resolver.
+- **Middleware**: Layers such as AuthMiddleware can be applied, ensuring functionality like authentication or logging is
+  handled consistently.
+
+Closure-based routes provide a lightweight yet flexible alternative when you don’t need a dedicated class handler.
+
+## 🌐 PSR-7 & PSR-15 Support
+
+The **Rammewerk Router** includes an extended class, `PsrRouter`, designed specifically for applications requiring
+**PSR-7** (HTTP Message Interface) and **PSR-15** (Middleware and Request Handlers) compliance. Use PsrRouter as a
+drop-in replacement for the default Router when working with PSR-compliant middleware and request handlers.
+
+#### Highlights
+
+- **PSR-7**: Pass compliant ServerRequestInterface objects to handlers and middleware.
+- **PSR-15**: Add reusable, standards-based MiddlewareInterface layers.
+- **Pipeline**: Middleware is executed sequentially, ensuring proper request and response processing.
+
+Here's an example of PSR-7 & PSR-15 Usage:
+
+```php
+use Rammewerk\Router\PsrRouter;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
+
+$router = new PsrRouter(static fn(string $class) => $container->get($class));
+
+// Add PSR middleware and routes
+// HomeRoute handle method must return a PSR-7 ResponseInterface
+$router->add('/home', HomeRoute::class)->middleware([
+    AuthMiddleware::class, // Implements PSR-15 MiddlewareInterface
+]);
+
+// $serverRequest is a PSR-7 ServerRequestInterface
+$response = $router->dispatch('/', $serverRequest);
+
+header('Content-Type: ' . $response->getHeaderLine('Content-Type'));
+echo $response->getBody();
+```
+
+The PsrRouter not only provides PSR-7 and PSR-15 support but also serves as an example of how to extend the Rammewerk
+Router to implement custom solutions tailored to specific application needs. This showcases the flexibility of the
+Rammewerk Router’s architecture, enabling developers to adapt it to various standards or unique requirements.
+
+> **NOTE:** If your project requires `getAttribute()` or similar functionality to handle parameters directly, the
+> Rammewerk Router might not be the ideal solution for your needs. This router is designed for flexibility and handles
+> parameters differently, with logic tailored to its specific architecture. If you’re looking for a router that supports
+> named parameters or simpler routing logic, you may want to consider alternatives that are more closely aligned with your
+> project’s requirements.
