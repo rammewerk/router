@@ -24,7 +24,7 @@ interface RouteInterface {
      *
      * @return RouteInterface
      */
-    public function method(string $method): RouteInterface;
+    public function classMethod(string $method): RouteInterface;
 
 
 

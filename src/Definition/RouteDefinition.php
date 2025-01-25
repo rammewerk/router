@@ -13,7 +13,7 @@ final class RouteDefinition implements RouteInterface {
     public private(set) array $middleware = [];
 
     /** @var string|null The class method to call */
-    public private(set) ?string $method = null;
+    public private(set) ?string $classMethod = null;
 
     /** @var string[] The matched subpath segments */
     public array $context = [];
@@ -34,7 +34,8 @@ final class RouteDefinition implements RouteInterface {
      * @param class-string|Closure $handler
      */
     public function __construct(
-        public string $pattern,
+        public readonly string $segment,
+        public readonly string $pattern,
         public string|Closure $handler,
     ) {}
 
@@ -74,11 +75,11 @@ final class RouteDefinition implements RouteInterface {
 
 
     /** @inheritDoc */
-    public function method(string $method): RouteInterface {
+    public function classMethod(string $method): RouteInterface {
         if ($this->handler instanceof Closure) {
             throw new LogicException('Setting method on closure route is not supported');
         }
-        $this->method = $method;
+        $this->classMethod = $method;
         return $this;
     }
 

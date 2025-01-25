@@ -67,7 +67,7 @@ $router->add('/hello', function (string $test) {
 $router->group(function () use ($router) {
     $router->add('/profile', ProfileRoute::class)->middleware([MiddlewareBefore::class])->defaultMethod('show');
     $router->add('/profile/name', ProfileNameRoute::class);
-    $router->add('/profile/*/images', ProfileNameRoute::class)->method('last');
+    $router->add('/profile/*/images', ProfileNameRoute::class)->classMethod('last');
 })->middleware([
     MiddlewareAfter::class,
     MiddlewareBefore::class,

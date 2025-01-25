@@ -1,6 +1,8 @@
 <?php
 
-namespace Rammewerk\Router\Tests;
+namespace Rammewerk\Router\Tests\Fixtures;
+
+use Rammewerk\Router\Attributes\Route;
 
 class RouterTestClass {
 
@@ -32,8 +34,17 @@ class RouterTestClass {
         return $same;
     }
 
-    public function multiple( string $name, int $hello): string {
+
+
+    public function multiple(string $name, int $hello): string {
         return $name . $hello;
+    }
+
+
+
+    #[Route('/invalid')]
+    public function invalidRoute(): string {
+        return 'Invalid route attribute, should never be resolved';
     }
 
 

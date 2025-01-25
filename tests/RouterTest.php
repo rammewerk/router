@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Rammewerk\Component\Container\Container;
 use Rammewerk\Router\Error\InvalidRoute;
 use Rammewerk\Router\Router;
+use Rammewerk\Router\Tests\Fixtures\RouterTestClass;
 use ReflectionClass;
 
 class RouterTest extends TestCase {

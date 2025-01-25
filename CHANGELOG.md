@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+0.9.2
+---
+
+- Changed method() to classMethod() to avoid confusion with HTTP methods
+- Support for Route attributes
+
 0.9.1
 ---
 

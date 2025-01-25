@@ -6,11 +6,13 @@ namespace Rammewerk\Router;
 
 use Closure;
 use LogicException;
+use Rammewerk\Router\Attributes\Route;
 use Rammewerk\Router\Definition\GroupDefinition;
 use Rammewerk\Router\Definition\GroupInterface;
 use Rammewerk\Router\Definition\RouteDefinition;
 use Rammewerk\Router\Definition\RouteInterface;
 use Rammewerk\Router\Error\InvalidRoute;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionFunction;
@@ -60,13 +62,12 @@ class Router {
     public function add(string $pattern, Closure|string $handler): RouteInterface {
 
         $pattern = trim($pattern, '/');
+        $baseSegment = explode('/', $pattern, 2)[0];
 
-        $route = new RouteDefinition($pattern, $handler);
+        $route = new RouteDefinition($baseSegment, $pattern, $handler);
 
         // If grouping, also attach route here
         $this->active_group?->registerRoute($route);
-
-        $baseSegment = explode('/', $pattern, 2)[0];
         return $this->routes[$baseSegment][] = $route;
 
     }
@@ -215,11 +216,16 @@ class Router {
     private function resolveClassMethod(ReflectionClass $reflection, RouteDefinition $route): ReflectionMethod {
 
         // 1. If route->method explicitly set
-        if ($route->method) {
+        if ($route->classMethod) {
             $route->args = $route->context;
             $route->context = [];
-            return $this->tryMethod($reflection, $route->method)
-                ?? throw new LogicException("Route method '$route->method' is explicitly defined, but not found");
+            return $this->tryMethod($reflection, $route->classMethod)
+                ?? throw new LogicException("Route method '$route->classMethod' is explicitly defined, but not found");
+        }
+
+        // 2. See if router class supports Route attribute
+        if ($classRouteAttr = $reflection->getAttributes(Route::class)[0] ?? null) {
+            return $this->resolveClassAttributes($reflection, $classRouteAttr, $route);
         }
 
         // 2. Try "context_method" until exhausted
@@ -421,6 +427,78 @@ class Router {
         /** @var string $request_uri */
         $request_uri = $_SERVER['REQUEST_URI'] ?? '';
         return trim(parse_url($request_uri, PHP_URL_PATH) ?: '', '/');
+    }
+
+
+
+    /**
+     * @template T of object
+     * @param ReflectionClass<T> $reflection
+     * @param ReflectionAttribute<Route> $classRouteAttr
+     * @param RouteDefinition $route
+     *
+     * @return ReflectionMethod
+     */
+    private function resolveClassAttributes(ReflectionClass $reflection, ReflectionAttribute $classRouteAttr, RouteDefinition $route): ReflectionMethod {
+
+        $classRoute = $classRouteAttr->newInstance()->path;
+
+        // Validate that the base segment matches the class-level route
+        if ($classRoute !== '/' . $route->segment) {
+            throw new LogicException("Route mismatch: Class-level route attribute '$classRoute' does not match base segment '/$route->segment'");
+        }
+
+        // Iterate over methods to find one with a matching Route attribute
+        foreach ($reflection->getMethods() as $method) {
+            if ($methodRouteAttr = $method->getAttributes(Route::class)[0] ?? null) {
+                $methodRoute = $methodRouteAttr->newInstance()->path;
+                // Check if the remaining context matches the method-level route
+                if ($this->matchAttributeRoute($methodRoute, $route)) {
+                    return $method;
+                }
+            }
+        }
+
+        throw new LogicException("No matching Route attribute found in class {$reflection->getName()} for route '$route->pattern'");
+
+
+    }
+
+
+
+    /**
+     * Match a route pattern to the given context and extract parameters.
+     *
+     * @return bool True if the pattern matches; false otherwise.
+     */
+    private function matchAttributeRoute(string $routePattern, RouteDefinition $route): bool {
+        $patternSegments = explode('/', trim($routePattern, '/'));
+        $contextSegments = $route->context;
+
+        // Quick optimization: If the pattern is longer than the context, it can't match
+        if (count($patternSegments) > count($contextSegments)) {
+            return false;
+        }
+
+        $args = [];
+
+        // Remove leading context segments from $contextSegments
+        // Handle wildcard: push the next context segment to args
+        // Return if pattern does not match
+        foreach ($patternSegments as $segment) {
+            $context = array_shift($contextSegments);
+            if (is_null($context)) return false;
+            if ($segment === '*') {
+                $args[] = $context;
+            } else if ($segment !== $context) {
+                return false;
+            }
+        }
+
+        // Remaining context becomes part of the args for variadic parameters
+        $route->args = array_merge($args, $contextSegments);
+        $route->context = []; // Clear remaining context
+        return true;
     }
 
 

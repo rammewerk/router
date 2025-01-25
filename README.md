@@ -222,10 +222,10 @@ The order of class dependencies doesn’t matter, but parameters extracted from 
 
 ### Binding a Path to a Specific Method
 
-You can bind a route to a specific method in its class by defining the method in the route definition:
+You can bind a route to a specific class method in its class by defining the method in the route definition:
 
 ```php
-$router->add(...)->method('edit');
+$router->add(...)->classMethod('edit');
 ```
 
 This ensures the `edit()` method of the `ProfileRoute` class is always called when `/profile/settings` is accessed.
@@ -473,5 +473,67 @@ Rammewerk Router’s architecture, enabling developers to adapt it to various st
 > **NOTE:** If your project requires `getAttribute()` or similar functionality to handle parameters directly, the
 > Rammewerk Router might not be the ideal solution for your needs. This router is designed for flexibility and handles
 > parameters differently, with logic tailored to its specific architecture. If you’re looking for a router that supports
-> named parameters or simpler routing logic, you may want to consider alternatives that are more closely aligned with your
+> named parameters or simpler routing logic, you may want to consider alternatives that are more closely aligned with
+> your
 > project’s requirements.
+
+
+Here’s an updated section for your README documentation to reflect the usage and rules for Route attributes:
+
+## 🛠️ Route Attributes
+
+The `#[Route]` attribute allows you to define routes directly on classes and methods for a clean and declarative
+approach to routing.
+
+**Class-Level Route Attribute:**
+
+- The `#[Route]` attribute **must** be defined on the class level.
+- The route path in the class attribute **must** match the base segment provided in the `add()` method. If not, the class
+  will not be reflected for route attributes. This ensures faster reflection and avoids ambiguity.
+
+```php
+use Rammewerk\Router\Attributes\Route;
+
+#[Route('/dashboard')]
+class DashboardRoute {
+    // ...
+}
+
+// Base segment ('/dashboard') matches class-level #Route('/dashboard')
+$router->add('/dashboard', DashboardRoute::class); 
+```
+
+**Method-Level Route Attribute:**
+
+- Use `#[Route]` attributes on methods to define subroutes. These routes follow the same wildcard (`*`) and trailing
+  parameters logic as manually defined routes.
+- The parameters for wildcard and trailing segments are passed to the method for validation and handling, just like we
+  do on closures and class-based routing, described above.
+
+```php
+#[Route('/dashboard')]
+class DashboardRoute {
+
+    #[Route('/stats/*/details')]
+    public function stats(string $param1, string ...$wildcards): Response {
+        // Example: `/dashboard/stats/123/details/flag1/flag2`
+    }
+
+    #[Route('/profile')]
+    public function profile( int $id ): string {
+        return "Profile page for user ID $id";
+    }
+    
+    public function unknown(): string {
+        return 'Will never be called, no matching route found';
+    }
+    
+}
+```
+
+#### Why This Approach?
+
+- **Performance**: The router only reflects classes if the base segment matches the class-level route attribute. This
+  ensures faster processing and avoids unnecessary computation.
+- **Clarity**: Explicitly linking class-level routes to base segments keeps the logic predictable and easy to debug.
+- **Flexibility**: You can use wildcards and trailing parameters to build dynamic and flexible route patterns.
