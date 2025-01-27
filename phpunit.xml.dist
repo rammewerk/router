@@ -16,6 +16,7 @@
         <testsuite name="Rammewerk Router Test Suite">
             <directory>./tests/</directory>
             <exclude>./tests/Fixtures</exclude>
+            <exclude>./tests/Benchmark</exclude>
         </testsuite>
     </testsuites>
 
