@@ -2,19 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Rammewerk\Router;
+namespace Rammewerk\Router\Adapters;
 
 use Closure;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Rammewerk\Router\Definition\RouteDefinition;
+use Rammewerk\Router\Error\RouterConfigurationException;
+use Rammewerk\Router\Router;
 
 class PsrRouter extends Router {
 
     /**
-     * @param array<int, Closure():MiddlewareInterface> $middlewareQueue
+     * @param Closure $middlewareQueue
      * @param Closure(ServerRequestInterface):ResponseInterface $requestHandler
      * @param null|object $serverRequest
      *
@@ -23,13 +24,13 @@ class PsrRouter extends Router {
     protected function runPipeline(array $middlewareQueue, Closure $requestHandler, object|null $serverRequest): ResponseInterface {
 
         if (!$serverRequest instanceof ServerRequestInterface) {
-            throw new \LogicException('PSR Router requires a ServerRequestInterface');
+            throw new RouterConfigurationException('PSR Router requires a ServerRequestInterface');
         }
 
         return new class($middlewareQueue, $requestHandler) implements RequestHandlerInterface {
 
             /**
-             * @param array<int, Closure():MiddlewareInterface> $middlewareQueue
+             * @param Closure $middlewareQueue
              * @param Closure(ServerRequestInterface):ResponseInterface $requestHandler
              */
             public function __construct(private array $middlewareQueue, private readonly Closure $requestHandler) {}
@@ -43,7 +44,7 @@ class PsrRouter extends Router {
                     /** @phpstan-ignore instanceof.alwaysTrue */
                     return ($response instanceof ResponseInterface)
                         ? $response
-                        : throw new \LogicException('Request handler must return a ResponseInterface');
+                        : throw new RouterConfigurationException('Request handler must return a ResponseInterface');
                 }
 
                 $middleware = array_shift($this->middlewareQueue)();
@@ -51,7 +52,7 @@ class PsrRouter extends Router {
                 /** @phpstan-ignore instanceof.alwaysTrue */
                 return ($middleware instanceof MiddlewareInterface)
                     ? $middleware->process($request, $this)
-                    : throw new \LogicException('Middleware must implement MiddlewareInterface');
+                    : throw new RouterConfigurationException('Middleware must implement MiddlewareInterface');
 
             }
 

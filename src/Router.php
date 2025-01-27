@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Rammewerk\Router;
 
+use BackedEnum;
 use Closure;
-use LogicException;
-use Rammewerk\Router\Attributes\Route;
 use Rammewerk\Router\Definition\GroupDefinition;
 use Rammewerk\Router\Definition\GroupInterface;
 use Rammewerk\Router\Definition\RouteDefinition;
 use Rammewerk\Router\Definition\RouteInterface;
 use Rammewerk\Router\Error\InvalidRoute;
+use Rammewerk\Router\Error\RouterConfigurationException;
+use Rammewerk\Router\Foundation\Node;
+use Rammewerk\Router\Foundation\Route;
+use Rammewerk\Router\Foundation\RouteUtility;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
@@ -23,11 +26,10 @@ use const PHP_URL_PATH;
 
 class Router {
 
-    /** @var array<string, RouteDefinition[]> List of routes */
-    private array $routes = [];
 
     /** @var GroupDefinition|null Current group in a group closure or null outside */
     private ?GroupDefinition $active_group = null;
+    private Node $radixRoot;
 
 
 
@@ -47,7 +49,9 @@ class Router {
     public function __construct(
         protected Closure $dependencyHandler,
         private readonly string $default_method = 'index',
-    ) {}
+    ) {
+        $this->radixRoot = new Node();
+    }
 
 
 
@@ -60,16 +64,11 @@ class Router {
      * @return RouteInterface
      */
     public function add(string $pattern, Closure|string $handler): RouteInterface {
-
-        $pattern = trim($pattern, '/');
-        $baseSegment = explode('/', $pattern, 2)[0];
-
-        $route = new RouteDefinition($baseSegment, $pattern, $handler);
-
-        // If grouping, also attach route here
+        $pattern = trim($pattern, '/ ');
+        $route = new RouteDefinition($pattern, $handler);
+        $this->radixRoot->insert($pattern, $route);
         $this->active_group?->registerRoute($route);
-        return $this->routes[$baseSegment][] = $route;
-
+        return $route;
     }
 
 
@@ -83,9 +82,9 @@ class Router {
      */
     public function group(Closure $callback): GroupInterface {
         $group = new GroupDefinition();
-        $this->active_group = $group;   // keep reference
-        $callback($this);               // user calls $router->add() inside
-        $this->active_group = null;     // free reference
+        $this->active_group = $group;                  // keep reference
+        $callback($this);                              // user calls $router->add() inside
+        $this->active_group = null;                    // free reference
         return $group;
     }
 
@@ -104,45 +103,29 @@ class Router {
      */
     public function dispatch(?string $path = null, object|null $serverRequest = null): mixed {
 
-        $path = $path ?? $this->getUriPath();
+        $path = trim($path ?? $this->getUriPath(), '/ ');
 
-        $pattern = trim($path, '/');
-        $baseSegment = explode('/', $pattern, 2)[0];
+        $node_route = $this->radixRoot->match($path);
 
-        // Fallback to root if not found
-        if (!isset($this->routes[$baseSegment]) && isset($this->routes[''])) {
-            $baseSegment = '';
-            $pattern = '/' . $pattern;
+        if (!$node_route) {
+            throw new InvalidRoute("No route found for path: $path");
         }
 
-        if (!isset($this->routes[$baseSegment])) {
-            throw new InvalidRoute('No route found for path: ' . $path);
+        // Clone the route and reset the state
+        $route = clone $node_route;
+        $node_route->context = '';
+
+        # Get lazy request handler
+        $handler = $this->requestHandlerFactory($route, $serverRequest);
+
+        // Return early if there are no middleware
+        if (empty($route->middleware)) {
+            return $handler($serverRequest);
         }
 
-        // Sort by regex length (desc) so longer patterns match first
-        usort($this->routes[$baseSegment], static fn($a, $b) => strlen($b->regex()) <=> strlen($a->regex()));
+        $middlewareFactories = $this->createMiddlewareFactories($route->middleware);
 
-        foreach ($this->routes[$baseSegment] as $route) {
-            if (preg_match($route->regex(), $pattern, $matches)) {
-
-                $route->setMatchesFromPath($matches);
-
-                # Get lazy request handler
-                $handler = $this->requestHandlerFactory($route, $serverRequest);
-
-                // Return early if there are no middleware
-                if (empty($route->middleware)) {
-                    return $handler($serverRequest);
-                }
-
-                $middlewareFactories = $this->createMiddlewareFactories($route->middleware);
-
-                return $this->runPipeline($middlewareFactories, $handler, $serverRequest);
-
-            }
-        }
-
-        throw new InvalidRoute('No route found for path: ' . $path);
+        return $this->runPipeline($middlewareFactories, $handler, $serverRequest);
 
     }
 
@@ -159,7 +142,7 @@ class Router {
 
         $reflection = $this->reflectHandler($route);
 
-        $argumentFactory = $this->resolveParameters($reflection, $route->args, $serverRequest);
+        $argumentFactory = $this->resolveParameters($reflection, $route->getArguments(), $serverRequest);
         $className = (is_string($route->handler)) ? $route->handler : null;
 
 
@@ -183,20 +166,23 @@ class Router {
      * @param RouteDefinition $route
      *
      * @return ReflectionFunction|ReflectionMethod
+     * @throws InvalidRoute
      */
     public function reflectHandler(RouteDefinition $route): ReflectionFunction|ReflectionMethod {
         try {
 
             if ($route->handler instanceof Closure) {
-                $route->args = $route->context;
-                $route->context = [];
                 return new ReflectionFunction($route->handler);
             }
 
-            return $this->resolveClassMethod(new ReflectionClass($route->handler), $route);
+            return $this->resolveClassRoute(new ReflectionClass($route->handler), $route);
 
         } catch (ReflectionException $e) {
-            throw new LogicException('Unable to reflect route handler: ' . $e->getMessage(), $e->getCode(), $e);
+            throw new RouterConfigurationException(
+                "Unable to reflect route handler for route: '$route->pattern' - {$e->getMessage()}",
+                $e->getCode(),
+                $e,
+            );
         }
     }
 
@@ -212,30 +198,32 @@ class Router {
      * @param RouteDefinition $route
      *
      * @return ReflectionMethod
+     * @throws InvalidRoute
      */
-    private function resolveClassMethod(ReflectionClass $reflection, RouteDefinition $route): ReflectionMethod {
+    private function resolveClassRoute(ReflectionClass $reflection, RouteDefinition $route): ReflectionMethod {
 
-        // 1. If route->method explicitly set
+        // 1. If route->method explicitly set, always go straight to method
         if ($route->classMethod) {
-            $route->args = $route->context;
-            $route->context = [];
             return $this->tryMethod($reflection, $route->classMethod)
-                ?? throw new LogicException("Route method '$route->classMethod' is explicitly defined, but not found");
+                ?? throw new RouterConfigurationException("Route method '$route->classMethod' is explicitly defined, but not found");
         }
 
-        // 2. See if router class supports Route attribute
+        // 2. If class supports Route attribute, we only resolve attributes
         if ($classRouteAttr = $reflection->getAttributes(Route::class)[0] ?? null) {
             return $this->resolveClassAttributes($reflection, $classRouteAttr, $route);
         }
 
-        // 2. Try "context_method" until exhausted
-        while ($route->context) {
-            if ($method = $this->tryMethod($reflection, implode('_', $route->context))) {
+
+        $method_name_context = str_replace('/', '_', $route->context);
+
+        while ($method_name_context) {
+            if ($method = $this->tryMethod($reflection, $method_name_context)) {
+                $route->context = ltrim(substr($route->context, strlen($method_name_context)), '/');
                 return $method;
             }
-            // Move the last context element to the beginning of argument list
-            array_unshift($route->args, array_pop($route->context));
+            RouteUtility::removeLastSegmentFromMethodName($method_name_context);
         }
+
 
         // 3. Fallback to default_method or __invoke
         if ($method = $this->tryMethod($reflection, $route->default_method ?? $this->default_method)) {
@@ -245,7 +233,7 @@ class Router {
             return $method;
         }
 
-        throw new LogicException("No valid method found in {$reflection->getName()}. Missing default method or __invoke()?");
+        throw new InvalidRoute("No valid method found in {$reflection->getName()}. Missing default method or __invoke()?");
 
     }
 
@@ -304,7 +292,7 @@ class Router {
                     if (method_exists($middleware, 'handle')) {
                         return $middleware->handle($request, $nextHandler);
                     }
-                    throw new LogicException('Required middleware method handle() is missing');
+                    throw new RouterConfigurationException('Required middleware method handle() is missing');
                 };
             },
             $requestHandler,
@@ -347,7 +335,20 @@ class Router {
                     return static fn(object|null $req) => $req;
                 }
 
+                // Then backed enum check:
+                if (is_subclass_of($className, BackedEnum::class)) {
+                    $arg = array_shift($args);
+                    return static function () use ($arg, $className) {
+                        return $arg === null
+                            ? null
+                            : $className::from($arg);
+                    };
+                }
+
+                # Check if parameter is a backed enum
                 return fn() => ($this->dependencyHandler)($className);
+
+
             }
 
             $arg = array_shift($args);
@@ -362,22 +363,17 @@ class Router {
 
             # Handle built-in type
             if (!is_null($arg) && $type instanceof ReflectionNamedType) {
-                $value = $this->convertParameterType($type->getName(), $arg);
-                if (!is_null($value)) {
-                    return static fn() => $value;
-                }
+                return static fn() => $arg;
             }
 
             # Handle union type of built-in types
-            if (!is_null($arg) && $type instanceof ReflectionUnionType) {
-                foreach ($type->getTypes() as $unionType) {
-                    if ($unionType instanceof ReflectionNamedType && $unionType->isBuiltIn()) {
-                        $value = $this->convertParameterType($unionType->getName(), $arg);
-                        if (!is_null($value)) {
-                            return static fn() => $value;
-                        }
-                    }
-                }
+            if (
+                !is_null($arg) && $type instanceof ReflectionUnionType && array_any(
+                    $type->getTypes(),
+                    static fn($unionType) => $unionType instanceof ReflectionNamedType && $unionType->isBuiltIn(),
+                )
+            ) {
+                return static fn() => $arg;
             }
 
             if (!is_null($arg)) {
@@ -394,26 +390,6 @@ class Router {
 
         return $argumentClosures;
 
-    }
-
-
-
-    /**
-     * Convert argument to match parameter type
-     *
-     * @param string $type
-     * @param string $arg
-     *
-     * @return bool|float|int|string|null
-     */
-    protected function convertParameterType(string $type, string $arg): bool|float|int|string|null {
-        return match ($type) {
-            'string', 'mixed' => $arg,
-            'int'             => filter_var($arg, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE),
-            'float'           => filter_var($arg, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE),
-            'bool'            => filter_var($arg, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE),
-            default           => null,
-        };
     }
 
 
@@ -438,20 +414,24 @@ class Router {
      * @param RouteDefinition $route
      *
      * @return ReflectionMethod
+     * @throws InvalidRoute
      */
     private function resolveClassAttributes(ReflectionClass $reflection, ReflectionAttribute $classRouteAttr, RouteDefinition $route): ReflectionMethod {
 
         $classRoute = $classRouteAttr->newInstance()->path;
 
+        $pattern = $route->pattern;
+        $base_segment = RouteUtility::extractFirstSegment($pattern);
+
         // Validate that the base segment matches the class-level route
-        if ($classRoute !== '/' . $route->segment) {
-            throw new LogicException("Route mismatch: Class-level route attribute '$classRoute' does not match base segment '/$route->segment'");
+        if (trim($classRoute, '/ ') !== $base_segment) {
+            throw new RouterConfigurationException("Route mismatch: Class-level route attribute '$classRoute' does not match added base segment '/$base_segment'");
         }
 
         // Iterate over methods to find one with a matching Route attribute
         foreach ($reflection->getMethods() as $method) {
-            if ($methodRouteAttr = $method->getAttributes(Route::class)[0] ?? null) {
-                $methodRoute = $methodRouteAttr->newInstance()->path;
+            if ($attribute = $method->getAttributes(Route::class)[0] ?? null) {
+                $methodRoute = $attribute->newInstance()->path;
                 // Check if the remaining context matches the method-level route
                 if ($this->matchAttributeRoute($methodRoute, $route)) {
                     return $method;
@@ -459,7 +439,7 @@ class Router {
             }
         }
 
-        throw new LogicException("No matching Route attribute found in class {$reflection->getName()} for route '$route->pattern'");
+        throw new InvalidRoute("No matching Route attribute found in class {$reflection->getName()} for route '$route->pattern'");
 
 
     }
@@ -471,33 +451,34 @@ class Router {
      *
      * @return bool True if the pattern matches; false otherwise.
      */
-    private function matchAttributeRoute(string $routePattern, RouteDefinition $route): bool {
-        $patternSegments = explode('/', trim($routePattern, '/'));
-        $contextSegments = $route->context;
+    private function matchAttributeRoute(string $attributeRoute, RouteDefinition $route): bool {
+        $attributeRoute = trim($attributeRoute, '/ ');# Count the number of / in the route pattern
 
         // Quick optimization: If the pattern is longer than the context, it can't match
-        if (count($patternSegments) > count($contextSegments)) {
+        if (substr_count($attributeRoute, '/') > substr_count($route->context, '/')) {
             return false;
         }
 
-        $args = [];
 
-        // Remove leading context segments from $contextSegments
-        // Handle wildcard: push the next context segment to args
-        // Return if pattern does not match
-        foreach ($patternSegments as $segment) {
-            $context = array_shift($contextSegments);
-            if (is_null($context)) return false;
-            if ($segment === '*') {
-                $args[] = $context;
-            } else if ($segment !== $context) {
+
+        $context = $route->context;
+        $args = '';
+
+
+        while ($attributeRoute) {
+            if (!$context) return false;
+            $contextSegment = RouteUtility::extractFirstSegment($context);
+            $attributeSegment = RouteUtility::extractFirstSegment($attributeRoute);
+            if ($attributeSegment === '*') {
+                RouteUtility::appendSegment($args, $contextSegment);
+            } else if ($attributeSegment !== $contextSegment) {
                 return false;
             }
         }
 
-        // Remaining context becomes part of the args for variadic parameters
-        $route->args = array_merge($args, $contextSegments);
-        $route->context = []; // Clear remaining context
+
+        RouteUtility::appendSegment($args, $context);
+        $route->context = $args;
         return true;
     }
 

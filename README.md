@@ -447,9 +447,7 @@ drop-in replacement for the default Router when working with PSR-compliant middl
 Here's an example of PSR-7 & PSR-15 Usage:
 
 ```php
-use Rammewerk\Router\PsrRouter;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Message\ResponseInterface;
+use Rammewerk\Router\Adapters\PsrRouter;
 
 $router = new PsrRouter(static fn(string $class) => $container->get($class));
 
@@ -492,7 +490,7 @@ approach to routing.
   will not be reflected for route attributes. This ensures faster reflection and avoids ambiguity.
 
 ```php
-use Rammewerk\Router\Attributes\Route;
+use Rammewerk\Router\Foundation\Route;
 
 #[Route('/dashboard')]
 class DashboardRoute {

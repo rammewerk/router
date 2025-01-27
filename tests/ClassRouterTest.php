@@ -13,7 +13,7 @@ use Rammewerk\Router\Router;
 use Rammewerk\Router\Tests\Fixtures\RouterTestClass;
 use ReflectionClass;
 
-class RouterTest extends TestCase {
+class ClassRouterTest extends TestCase {
 
     private Router $router;
 
@@ -22,47 +22,6 @@ class RouterTest extends TestCase {
     public function setUp(): void {
         $container = new Container();
         $this->router = new Router(fn($class) => $container->create($class));
-    }
-
-
-
-    public function testAddClosureRoute(): void {
-        $routePath = "/test";
-        $routeHandler = function () {
-            echo "Test route";
-        };
-
-        $this->router->add($routePath, $routeHandler);
-
-        // We can't directly check the added route due to its private property status.
-        // So, we will use Reflection to check if our route was added.
-        $routerReflection = new ReflectionClass($this->router);
-        $routesPropertyReflection = $routerReflection->getProperty('routes');
-
-        /** @var array<string, Closure> $routes */
-        $routes = $routesPropertyReflection->getValue($this->router);
-
-        $this->assertArrayHasKey(trim($routePath, '/'), $routes);
-        #$this->assertSame($routeHandler, $routes[$routePath]);
-    }
-
-
-
-    public function testAddClosureEchoHello(): void {
-        $this->router->add('/', function () {
-            echo 'hello';
-        });
-
-        // Start output buffering
-        ob_start();
-
-        $this->router->dispatch('/');
-
-        // Get the content from the output buffer and clean it
-        $output = ob_get_clean();
-
-        // Check if 'hello' is printed
-        $this->assertEquals('hello', $output);
     }
 
 
@@ -84,10 +43,10 @@ class RouterTest extends TestCase {
 
 
 
-    public function testNoRouteAccess(): void {
+    public function testTooManyParameters(): void {
         $this->expectException(InvalidRoute::class);
         $this->router->add('/', RouterTestClass::class);
-        $this->router->dispatch('/wrong');
+        $response = $this->router->dispatch('/wrong');
     }
 
 

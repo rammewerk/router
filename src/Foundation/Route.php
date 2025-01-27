@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rammewerk\Router\Attributes;
+namespace Rammewerk\Router\Foundation;
 
 use Attribute;
 

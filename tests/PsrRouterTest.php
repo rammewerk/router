@@ -8,9 +8,10 @@ use Nyholm\Psr7\Stream;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Rammewerk\Component\Container\Container;
+use Rammewerk\Router\Adapters\PsrRouter;
 use Rammewerk\Router\Definition\RouteDefinition;
 use Rammewerk\Router\Error\InvalidRoute;
-use Rammewerk\Router\PsrRouter;
+use Rammewerk\Router\Error\RouterConfigurationException;
 use Rammewerk\Router\Tests\Fixtures\PSR\AddAttributeMiddleware;
 use Rammewerk\Router\Tests\Fixtures\PSR\AddCustomHeaderMiddleware;
 use Rammewerk\Router\Tests\Fixtures\PSR\PsrRouterClass;
@@ -121,7 +122,7 @@ class PsrRouterTest extends TestCase {
 
 
     public function testInvalidMiddleware(): void {
-        $this->expectException(\LogicException::class);
+        $this->expectException(RouterConfigurationException::class);
         $this->router->add('/correct', function (): ResponseInterface {
             return new Response();
         })->middleware([RouteDefinition::class]);
@@ -131,7 +132,7 @@ class PsrRouterTest extends TestCase {
 
 
     public function testInvalidServerRequest(): void {
-        $this->expectException(\LogicException::class);
+        $this->expectException(RouterConfigurationException::class);
         $this->expectExceptionMessage('PSR Router requires a ServerRequestInterface');
         $this->router->add('/correct', function (): ResponseInterface {
             return new Response();
@@ -148,6 +149,12 @@ class PsrRouterTest extends TestCase {
         $response = $router->dispatch($request->getUri()->getPath(), $request);
         $this->assertInstanceOf(ResponseInterface::class, $response);
         $this->assertEquals('This is index', $response->getBody()->getContents());
+    }
+
+
+    public function testPsrRoutingClassWithParameters(): void {
+        $router = clone $this->router;
+        $router->add('/home', PsrRouterClass::class);
         $request = new ServerRequest('GET', 'https://example.com/home/string/test');
         $response = $router->dispatch($request->getUri()->getPath(), $request);
         $this->assertInstanceOf(ResponseInterface::class, $response);

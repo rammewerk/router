@@ -2,7 +2,7 @@
 
 namespace Rammewerk\Router\Tests\Fixtures\Attributes;
 
-use Rammewerk\Router\Attributes\Route;
+use Rammewerk\Router\Foundation\Route;
 
 #[Route('/dashboard')]
 class DashboardRoute {

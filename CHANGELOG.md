@@ -1,6 +1,18 @@
 CHANGELOG
 =========
 
+0.9.3
+---
+
+- Added support for enums
+- Increased performance by replacing preg_match() with radix tree
+- Optimized the way context and paths are handled, string based instead of array based. Benchmarked everything changes
+  to make sure there was improvement.
+- Better folder structure
+- Added tests and organized tests
+- Added a simple benchmark tester to help compare different implementations
+- Implemented a RouterConfigurationException class to make it more clear what went wrong
+
 0.9.2
 ---
 

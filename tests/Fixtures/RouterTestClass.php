@@ -2,13 +2,9 @@
 
 namespace Rammewerk\Router\Tests\Fixtures;
 
-use Rammewerk\Router\Attributes\Route;
+use Rammewerk\Router\Foundation\Route;
 
 class RouterTestClass {
-
-    public function hasRouteAccess(): bool {
-        return false;
-    }
 
 
 

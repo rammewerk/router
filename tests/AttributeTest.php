@@ -22,7 +22,6 @@ class AttributeTest extends TestCase {
 
         // Register routes
         $this->router->add('/dashboard', DashboardRoute::class);
-        $this->router->add('/test', RouterTestClass::class);
     }
 
 
@@ -55,6 +54,7 @@ class AttributeTest extends TestCase {
 
     public function testMissingClassRouteAttribute(): void {
         // Attempt to dispatch an invalid route
+        $this->router->add('/test', RouterTestClass::class);
         $this->expectException(InvalidRoute::class);
         $this->router->dispatch('/test/invalid');
     }
