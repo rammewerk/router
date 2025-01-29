@@ -77,7 +77,7 @@ final class RouteDefinition implements RouteInterface {
      * @return string[]
      */
     public function getArguments(): array {
-        return $this->context ? explode('/', $this->context) : [];
+        return $this->context !== '' ? explode('/', $this->context) : [];
     }
 
 

@@ -35,14 +35,14 @@ class RouteUtility {
 
 
     public static function prependSegment(string &$path, string $segment): void {
-        if (!$segment) return;
+        if ($segment === '') return;
         $path = $segment . ($path !== '' ? '/' . ltrim($path, '/') : '');
     }
 
 
 
     public static function appendSegment(string &$path, string $segment): void {
-        if (!$segment) return;
+        if ($segment === '') return;
         $path .= ($path !== '' ? '/' : '') . $segment;
     }
 

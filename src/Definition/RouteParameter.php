@@ -6,6 +6,7 @@ namespace Rammewerk\Router\Definition;
 
 class RouteParameter {
 
+    public string $name = '';
     public bool $variadic = false;
     public bool $optional = false;
     public bool $nullable = false;
@@ -13,6 +14,8 @@ class RouteParameter {
     public string $type = '';
     public mixed $defaultValue = null;
     public bool $isUnionType = false;
+    public ?string $enum = null;
+
 
 
 }

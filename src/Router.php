@@ -7,6 +7,7 @@ namespace Rammewerk\Router;
 
 use BackedEnum;
 use Closure;
+use IntBackedEnum;
 use Rammewerk\Router\Definition\GroupDefinition;
 use Rammewerk\Router\Definition\GroupInterface;
 use Rammewerk\Router\Definition\RouteDefinition;
@@ -24,6 +25,7 @@ use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionUnionType;
+use StringBackedEnum;
 use const PHP_URL_PATH;
 
 /**
@@ -147,6 +149,8 @@ class Router {
         if (!$route->factory) {
             $route = $this->requestHandlerFactory($route);
         }
+
+
 
         $args = $route->getArguments();
 
@@ -369,58 +373,118 @@ class Router {
 
         foreach ($handler->getParameters() as $parameter) {
             $set = new RouteParameter();
+            $set->name = $parameter->getName();
             $set->variadic = $parameter->isVariadic();
             $set->optional = $parameter->isOptional();
             $set->nullable = $parameter->allowsNull();
             $set->builtIn = $parameter->getType() instanceof ReflectionNamedType && $parameter->getType()->isBuiltin();
             $set->type = $parameter->getType() instanceof ReflectionNamedType ? $parameter->getType()->getName() : '';
-            $set->defaultValue = $parameter->isOptional() ? $parameter->getDefaultValue() : null;
+            $set->defaultValue = $parameter->isOptional() && $parameter->isDefaultValueAvailable() ? $parameter->getDefaultValue() : null;
             $set->isUnionType = $parameter->getType() instanceof ReflectionUnionType;
+
+            if (!$set->builtIn && $set->type && is_subclass_of($set->type, BackedEnum::class)) {
+                $set->enum = new \ReflectionEnum($set->type)->getBackingType()?->getName();
+            }
+
             $parameterClosures[] = $set;
         }
 
+        /**
+         * @param string[] $args
+         * @param object|null $request
+         *
+         * @return Closure(array<string,mixed>, object|null): mixed[]
+         * @throws RouterConfigurationException|InvalidRoute
+         */
         return function (array $args, object|null $request) use ($parameterClosures, $handlerName) {
 
-            $arguments = array_map(function (RouteParameter $parameter) use (&$args, $request, $handlerName) {
+            $arguments = [];
 
+            foreach ($parameterClosures as $parameter) {
+
+                // Variadic must be the last parameter
                 if ($parameter->variadic) {
-                    $value = $args;
+                    $arguments = [...$arguments, ...$args];
                     $args = [];
-                    return $value;
+                    break;
                 }
 
                 if (!$parameter->builtIn) {
 
                     // Use the given instance of request handler, if parameter is of same type
                     if ($request && $request instanceof $parameter->type) {
-                        return $request;
+                        $arguments[] = $request;
+                        continue;
                     }
 
                     // Then backed enum check:
-                    if (is_subclass_of($parameter->type, BackedEnum::class)) {
+                    if ($parameter->enum) {
+                        $arg = array_shift($args) ?? $parameter->defaultValue;
+                        if ($arg instanceof $parameter->type) {
+                            $arguments[] = $arg;
+                            continue;
+                        }
+                        if ($parameter->enum === 'int' && is_numeric($arg)) {
+                            $arg = filter_var($arg, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE);
+                            $arguments[] = $parameter->type::tryFrom($arg) ?? throw new InvalidRoute("Invalid enum value '{$arg}' for '{$parameter->type}'");;
+                            continue;
+                        }
+                        if ($parameter->enum === 'string' && is_string($arg) && $arg !== '') {
+                            $arguments[] = $parameter->type::tryFrom($arg) ?? throw new InvalidRoute("Invalid enum value '{$arg}' for '{$parameter->type}'");;
+                            continue;
+                        }
+                        throw new InvalidRoute("Invalid enum value for '{$parameter->type}'");
+                    }
+
+                    // Then non-backed enum check based on case name
+                    if (enum_exists($parameter->type)) {
                         $arg = array_shift($args);
-                        /** @phpstan-ignore-next-line We will always just try the given argument */
-                        return $arg !== null ? $parameter->type::from($arg) : $parameter->defaultValue;
+                        if (is_string($arg) && $arg !== '') {
+                            $enumCase = array_filter($parameter->type::cases(), static fn($case) => strcasecmp($case->name, $arg) === 0);
+                            $arguments[] = !empty($enumCase)
+                                ? reset($enumCase)
+                                : throw new InvalidRoute("Invalid enum value '{$arg}' for '{$parameter->type}'");
+                            continue;
+                        }
+                        array_unshift($args, $arg);
                     }
 
                     /** @phpstan-ignore-next-line Complains about not being a class-string */
-                    return ($this->dependencyHandler)($parameter->type);
+                    $arguments[] = ($this->dependencyHandler)($parameter->type);
+                    continue;
 
                 }
 
                 $arg = array_shift($args);
 
                 if (!is_null($arg)) {
-                    return $arg;
+                    $arg = match ($parameter->type) {
+                        'int'      => filter_var($arg, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE),
+                        'float'    => filter_var($arg, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE),
+                        'bool'     => filter_var($arg, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE),
+                        'array',
+                        'object',
+                        'callable',
+                        'iterable',
+                        'resource' => throw new RouterConfigurationException("The parameter '{$parameter->name}' in route method '{$handlerName}' has an unsupported type: '{$parameter->type}'."),
+                        default    => $arg,
+                    };
+                }
+
+                if (!is_null($arg)) {
+                    $arguments[] = $arg;
+                    continue;
                 }
 
                 if (($parameter->optional || $parameter->nullable)) {
-                    return $parameter->defaultValue;
+                    $arguments[] = $parameter->defaultValue;
+                    continue;
                 }
 
-                throw new InvalidRoute("No arguments left to resolve parameter: $parameter->type in $handlerName");
 
-            }, $parameterClosures);
+                throw new InvalidRoute("Missing required parameter '{$parameter->name}' of type '{$parameter->type}' in '{$handlerName}'");
+
+            }
 
             if (!empty($args)) {
                 throw new InvalidRoute('Too many arguments passed to route handler method ' . $handlerName);
@@ -460,7 +524,7 @@ class Router {
     private function resolveClassAttributes(ReflectionClass $reflection, ReflectionAttribute $classRouteAttr, RouteDefinition $route): RouteDefinition {
 
         $classRoute = trim($classRouteAttr->newInstance()->path, '/ ');
-
+        
         $pattern = $route->pattern;
         $base_segment = RouteUtility::extractFirstSegment($pattern);
 
@@ -485,6 +549,8 @@ class Router {
                 $new_route->context = '';
             }
         }
+
+
 
         $replace_route = $this->node->match($this->path);
         if ($replace_route) {

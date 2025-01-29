@@ -55,6 +55,7 @@ final class Node {
         $currentNode = $this;
 
         while ($path !== '') {
+
             $segment = RouteUtility::extractFirstSegment($path);
 
             // Exact child

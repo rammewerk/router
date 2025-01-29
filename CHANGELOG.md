@@ -1,6 +1,20 @@
 CHANGELOG
 =========
 
+0.9.4
+---
+
+- Improved performance throughout the codebase
+- New improved radix tree implementation
+- Introduced cached parameter resolver
+- Removed reflection from parameter resolver cache to allow for serialization
+- Utilizing the radix tree to resolve class methods and attributes
+- Caching up reflection instances
+- Added support for non-backed enums, through matching on case name
+- Added multiple new unit tests, ensuring the code is solid
+- Added a BETA version of the adapter "MethodAwareRouter" which allows for validating route based on HTTP method. Please
+  note that this is still in BETA and may change in the future. Any feedback is welcome!
+
 0.9.3
 ---
 
