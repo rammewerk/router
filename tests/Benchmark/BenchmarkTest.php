@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Rammewerk\Router\Tests\Benchmark;
 
 use Rammewerk\Router\Foundation\RouteUtility;
+use Rammewerk\Router\Router;
 
 class BenchmarkTest extends Benchmark {
 
@@ -10,105 +13,83 @@ class BenchmarkTest extends Benchmark {
 
 
 
-    private function mockTryMethod(string $match): bool {
-        return $match === 'hello_world';
-    }
-
-
-    private function createMockRoute(): object {
-        return new class() {
-            public string $context_match = 'hello/world/we/are/absolutely/fine';
-            public string $context_no_match = 'no/match/path/exists/here';
-            public string $args = '';
-        };
-    }
+    public function __construct(private readonly Router $router) {}
 
 
 
     public function case(): void {
 
-        $route = $this->createMockRoute();
+        $router = $this->router;
 
-        // Benchmark: workingContext and no match
-        $this->benchmark('new_matcher', function () use ($route) {
 
-            $workingContext = $route->context_no_match;
 
-            while ($workingContext) {
-                if ($this->mockTryMethod(str_replace('/', '_', $workingContext))) {
-                    throw new \Exception('This should never be reached');
-                }
-                RouteUtility::extractLastSegment($workingContext);
+        $path = '/hello/world/i/am/a/test/path/a/very/long/one/that/is/longer/than/the/context/segment/and/should/match/the';
+        $router->add($path, function (string $name) {
+            return $name;
+        });
+        $path = '/hello/world/i/am/a/test/path/a/very/long/one/that/is/longer/than/the/context/segment/and/should/match/the/name';
+        $this->benchmark('closure', function () use ($router, $path) {
+            $res = $router->dispatch($path);
+            if ($res !== 'name') {
+                throw new \Exception('Invalid result: ' . $res);
             }
-
-            $workingContext = $route->context_match;
-            while ($workingContext) {
-                if ($this->mockTryMethod(str_replace('/', '_', $workingContext))) {
-                    $result = ltrim(substr($route->context_match, strlen($workingContext)), '/');
-                    if( $result !== 'we/are/absolutely/fine' ) throw new \Exception('Output not same in new_matcher');
-                    break;
-                }
-                RouteUtility::extractLastSegment($workingContext);
-            }
-
         });
 
 
-        $route = $this->createMockRoute();
+        $router->add('/profile', RouteBenchmarkProfileClass::class);
 
-        $this->benchmark('old_matcher', function () use ($route) {
-
-            $workingContext = $route->context_no_match;
-            $args = '';
-
-            while ($workingContext) {
-                if ($this->mockTryMethod(str_replace('/', '_', $workingContext))) {
-                    throw new \Exception('This should never be reached');
-                }
-                RouteUtility::prependSegment($args, RouteUtility::extractLastSegment($workingContext));
+        #$router->add('/profile/settings/email', RouteBenchmarkProfileClass::class)->classMethod('settings_email');
+        $path = '/profile/settings/email/240';
+        $this->benchmark('profile_email', function () use ($router, $path) {
+            $res = $router->dispatch($path);
+            if ($res !== 'profile.settings.email.240') {
+                throw new \Exception('Invalid result: ' . $res);
             }
-            $result = $args;
+        });
 
-            $workingContext = $route->context_match;
-            $args = '';
-            while ($workingContext) {
-                if ($this->mockTryMethod(str_replace('/', '_', $workingContext))) {
-                    $result = $args;
-                    if( $result !== 'we/are/absolutely/fine' ) throw new \Exception('Output not same in new_matcher');
-                    break;
-                }
-                RouteUtility::prependSegment($args, RouteUtility::extractLastSegment($workingContext));
+
+        $path = '/profile';
+        $this->benchmark('profile_index', function () use ($router, $path) {
+            $res = $router->dispatch($path);
+            if ($res !== 'profile.index') {
+                throw new \Exception('Invalid result');
             }
+        });
 
+
+        $path = '/profile/newsletter';
+        $this->benchmark('profile_newsletter', function () use ($router, $path) {
+            $res = $router->dispatch($path);
+            if ($res !== 'profile.newsletter') {
+                throw new \Exception('Invalid result');
+            }
         });
 
 
 
-        $route = $this->createMockRoute();
-
-        // Benchmark: workingContext and no match
-        $this->benchmark('new_alt', function () use ($route) {
-
-            $workingContext = str_replace('/', '_', $route->context_no_match);
-
-            while ($workingContext) {
-                if ($this->mockTryMethod($workingContext)) {
-                    throw new \Exception('This should never be reached');
-                }
-
-                RouteUtility::removeLastSegmentFromMethodName($workingContext);
+        $router->add('/user', RouteAttributeBenchmark::class);
+        $path = '/user';
+        $this->benchmark('user', function () use ($router, $path) {
+            $res = $router->dispatch($path);
+            if ($res !== 'user') {
+                throw new \Exception('Invalid result: ' . $res);
             }
+        });
 
-            $workingContext = str_replace('/', '_', $route->context_match);
-            while ($workingContext) {
-                if ($this->mockTryMethod($workingContext)) {
-                    $result = ltrim(substr($route->context_match, strlen($workingContext)), '/');
-                    if( $result !== 'we/are/absolutely/fine' ) throw new \Exception('Output not same in new_matcher');
-                    break;
-                }
-                RouteUtility::removeLastSegmentFromMethodName($workingContext);
+        $path = '/user/settings/email/120';
+        $this->benchmark('user_email', function () use ($router, $path) {
+            $res = $router->dispatch($path);
+            if ($res !== 'user.settings.email.120') {
+                throw new \Exception('Invalid result: ' . $res);
             }
+        });
 
+        $path = '/user/settings/email/save/many/trips';
+        $this->benchmark('user_long', function () use ($router, $path) {
+            $res = $router->dispatch($path);
+            if ($res !== 'user.long') {
+                throw new \Exception('Invalid result: ' . $res);
+            }
         });
 
 

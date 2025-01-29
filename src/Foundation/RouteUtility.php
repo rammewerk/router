@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Rammewerk\Router\Foundation;
 
 class RouteUtility {
@@ -18,9 +20,8 @@ class RouteUtility {
     }
 
 
-
     public static function extractLastSegment(string &$path): string {
-        if (($p = strpos($path, '/')) !== false) {
+        if (($p = strrpos($path, '/')) !== false) {
             $lastSegment = substr($path, $p + 1);
             $path = substr($path, 0, $p);
             return $lastSegment;
@@ -32,9 +33,10 @@ class RouteUtility {
 
 
 
+
     public static function prependSegment(string &$path, string $segment): void {
         if (!$segment) return;
-        $path = $segment . ($path !== '' ? '/' . $path : '');
+        $path = $segment . ($path !== '' ? '/' . ltrim($path, '/') : '');
     }
 
 

@@ -6,6 +6,8 @@ namespace Rammewerk\Router\Definition;
 
 use Closure;
 use LogicException;
+use ReflectionFunction;
+use ReflectionMethod;
 
 final class RouteDefinition implements RouteInterface {
 
@@ -15,13 +17,21 @@ final class RouteDefinition implements RouteInterface {
     /** @var string|null The class method to call */
     public private(set) ?string $classMethod = null;
 
+    /** @var ?string The route handler default method */
+    public private(set) ?string $default_method = null;
+
+    public string $nodeContext = '';
+
     /** @var string The leftover part of the path still being worked on. */
     public string $context = '';
 
+    /** @var null|Closure(mixed[], object|null): mixed */
+    public ?Closure $factory = null;
 
-
-    /** @var ?string The route handler default method */
-    public private(set) ?string $default_method = null;
+    /**
+     * @var mixed|ReflectionMethod
+     */
+    public ReflectionMethod|ReflectionFunction|null $reflection = null;
 
 
 

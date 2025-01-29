@@ -24,21 +24,23 @@ final class Node {
      */
     public function insert(string $path, RouteDefinition $route): void {
 
-        if (!$path) {
-            $this->route = $route;
-            return;
+        $currentNode = $this;
+
+        while ($path !== '') {
+            $segment = RouteUtility::extractFirstSegment($path);
+
+            if ($segment === '*') {
+                $currentNode->wildcard ??= new self();
+                $currentNode = $currentNode->wildcard;
+                continue;
+            }
+
+            $currentNode->children[$segment] ??= new self();
+            $currentNode = $currentNode->children[$segment];
         }
 
-        $segment = RouteUtility::extractFirstSegment($path);
+        $currentNode->route = $route;
 
-        if ($segment === '*') {
-            $this->wildcard ??= new self();
-            $this->wildcard->insert($path, $route);
-            return;
-        }
-
-        $this->children[$segment] ??= new self();
-        $this->children[$segment]->insert($path, $route);
     }
 
 
@@ -50,31 +52,34 @@ final class Node {
      */
     public function match(string $path): ?RouteDefinition {
 
-        if (!$path) {
-            return $this->route;
+        $currentNode = $this;
+
+        while ($path !== '') {
+            $segment = RouteUtility::extractFirstSegment($path);
+
+            // Exact child
+            if (isset($currentNode->children[$segment])) {
+                $currentNode = $currentNode->children[$segment];
+                continue;
+            }
+
+            // Wildcard child
+            if ($currentNode->wildcard && $route = $currentNode->wildcard->match($path)) {
+                RouteUtility::prependSegment($route->nodeContext, $segment);
+                return $route;
+            }
+
+            RouteUtility::prependSegment($path, $segment);
+            break;
         }
 
-        $segment = RouteUtility::extractFirstSegment($path);
-
-        // Exact child
-        if (isset($this->children[$segment]) && $route = $this->children[$segment]->match($path)) {
-            return $route;
+        // Handle leftover segments
+        if ($currentNode->route && $path !== '') {
+            RouteUtility::appendSegment($currentNode->route->nodeContext, $path);
         }
 
-        // Wildcard child
-        if ($this->wildcard && $route = $this->wildcard->match($path)) {
-            RouteUtility::prependSegment($route->context, $segment);
-            return $route;
-        }
+        return $currentNode->route;
 
-        RouteUtility::prependSegment($path, $segment);
-
-        // If we're here and have a route, we accept leftover as extra params
-        if ($this->route && $path !== '') {
-            RouteUtility::appendSegment($this->route->context, $path);
-        }
-
-        return $this->route;
 
     }
 
