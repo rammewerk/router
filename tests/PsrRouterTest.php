@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Rammewerk\Router\Tests;
 
 use Nyholm\Psr7\Response;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Rammewerk\Router\Tests\Fixtures\Middleware;
 
 class MiddlewareBeforeTest {
