@@ -75,14 +75,22 @@ composer require rammewerk/router
 ```php
 use Rammewerk\Router\Router;
 
-// Create Router with a closure to handle construction of class instances
-$router = new Router( static fn( string $class) => $container->get($class) );
+// Define your dependency resolver.
+// This is a closure that receives a class string
+// and  must return an instance of that class.
+$di_container = static fn( string $class) => new $class() );
+
+// Create Router
+$router = new Router($di_container);
 
 // Define routes
 // ...
 
 // Go!
-$router->dispatch();
+$response = $router->dispatch();
+
+// Handle response....
+
 ```
 
 ## 🧭 Basic Routing
@@ -164,6 +172,26 @@ class ProfileRoute {
 }
 ```
 
+### Route attributes as alternative
+
+You can also use the `#[Route]` if you prefer a more declarative approach:
+
+```php
+use Rammewerk\Router\Foundation\Route;
+
+#[Route('/profile')] // <-- must match based path given in add()
+class ProfileRoute {
+
+    // Will match /profile/settings/notifications
+    #[Route('/settings/notifications')] // <-- Attribute
+    #[Route('/profile/settings/notifications')] // <-- This also works
+    public function notifications(): string {
+        return 'You visited /profile/settings/notifications';
+    }
+    
+}
+```
+
 Each segment after the base path (`/profile`) maps to a method, with subpath segments replaced by underscores (`_`).
 
 ### Dynamic Path Segments
@@ -176,7 +204,7 @@ class ProfileRoute {
     public function edit( int $id ): string {
         return "You visited /profile/edit/$id";
     }
-
+    
 }
 ```
 
@@ -193,6 +221,41 @@ $router->add('/profile/*/edit', ProfileEditRoute::class);
 
 Wildcard parameters are mapped in order, alongside subpaths. For example, `/profile/123/edit/notification` results in
 parameters `123` and `notification`.
+
+## Parameter types
+
+### Enums
+
+You can use both PHP backed enumerations and regular enums as route parameters because Rammewerk will convert them
+automatically based on the given path argument.
+
+```php
+# Backed enum
+enum OrderStatusEnum: string {
+    case OPEN = 'open'; // Path Argument /open/ will match this
+    case CLOSED = 'closed'; // Path Argument /closed/ will match this
+}
+
+# Regular enum
+enum OrderShipmentEnum {
+    case SHIPPED;   // Path Argument /shipped/ will match this
+    case NOT_SHIPPED; // Path Argument /not_shipped/ will match this
+}
+
+# Example:
+
+#[Route('/orders')]
+class Orders {
+
+    #[Route('/item/*/status')] // Will support paths like: /item/123/status/open
+    public function itemStatus( int $item_id, OrderStatusEnum $status ): string {
+        return "The status for item $item_id is $status->value";
+    }
+     
+}
+```
+
+The router will automatically convert the parameter to the type specified in the method signature.
 
 **Notes:**
 
@@ -288,7 +351,7 @@ null) and the next closure to call.
 > Rammewerk Router also supports PSR-15 MiddlewareInterface. See [PSR-15 Support](#-psr-7--psr-15-support) for more
 > information.
 
-### Request Handling
+### Request Handling - Dispatching
 
 The router passes a request object to each middleware and the route handler. The request type is flexible; you can
 pass any object during dispatch:
@@ -378,7 +441,10 @@ This router shines with its robust and flexible parameter system:
   container for maximum flexibility and adaptability.
 - **Wildcard Simplicity**: Use * to capture dynamic segments - no regex needed, and parameter types ensure effortless
   refactoring and clarity.
-  -** No Dictated Names**: Parameters don’t rely on specific names, giving you freedom and flexibility.
+- **No Dictated Names**: Parameters don’t rely on specific names, giving you freedom and flexibility.
+- **Support for Enums**: Support for both backed enums and regular enums. Backed enums are automatically converted to
+  it's type, where the given parameter argument is called with ::tryFrom(), while regular enums are matched with their
+  case.
 
 This level of type safety, combined with flexible wildcards, is rare in other routers. It’s designed to make routing
 both powerful and effortless! 🚀
@@ -486,7 +552,8 @@ approach to routing.
 **Class-Level Route Attribute:**
 
 - The `#[Route]` attribute **must** be defined on the class level.
-- The route path in the class attribute **must** match the base segment provided in the `add()` method. If not, the class
+- The route path in the class attribute **must** match the base segment provided in the `add()` method. If not, the
+  class
   will not be reflected for route attributes. This ensures faster reflection and avoids ambiguity.
 
 ```php

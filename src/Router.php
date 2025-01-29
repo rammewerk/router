@@ -142,15 +142,9 @@ class Router {
         $route->context = $route->nodeContext;
         $route->nodeContext = '';
 
-        # What we're left with is a context that must be matched to a method, else it is parameters.
-
-        # Get lazy request handler
-
         if (!$route->factory) {
             $route = $this->requestHandlerFactory($route);
         }
-
-
 
         $args = $route->getArguments();
 
@@ -173,15 +167,12 @@ class Router {
 
     /**
      * @param RouteDefinition $route
-     * @param object|null $serverRequest
      *
-     * @return Closure
+     * @return RouteDefinition
      * @throws InvalidRoute
      */
     private function requestHandlerFactory(RouteDefinition $route): RouteDefinition {
 
-        # Either we have a reflection or we need to reflect the handler
-        # We should change this by returning the new route instead of the reflection
         if (!$route->reflection) {
             $route = $this->reflectHandler($route);
         }
@@ -190,7 +181,11 @@ class Router {
             throw new InvalidRoute("Unable to reflect route handler for route: '$route->pattern'");
         }
 
-        $argumentFactory = $this->getParameterClosure($route->reflection);
+        try {
+            $argumentFactory = $this->getParameterClosure($route->reflection);
+        } catch (ReflectionException $e) {
+            throw new InvalidRoute("Unable to reflect route handler for route: '$route->pattern' - {$e->getMessage()}");
+        }
         $route->reflection = null;
 
         if (is_string($route->handler)) {
@@ -285,15 +280,13 @@ class Router {
             if ($methodPath !== 'index' && $methodPath !== '__invoke') {
                 RouteUtility::appendSegment($pattern, $methodPath);
             }
-            $new_route = $this->createNewSpecificRoute($pattern, $method->getName(), $route->handler);
-            $new_route->context = '';
-            if (!$new_route->classMethod) {
-                $new_route->classMethod($method->getName());
+            $added_route = $this->createNewSpecificRoute($pattern, $method->getName(), $route->handler);
+            $added_route->context = '';
+            if (!$added_route->classMethod) {
+                $added_route->classMethod($method->getName());
             }
-            $new_route->reflection = $method;
+            $added_route->reflection = $method;
         }
-
-        # Can we here just use radix tree to get the correct method?
 
         $replace_route = $this->node->match($this->path);
         if ($replace_route) {
@@ -524,7 +517,7 @@ class Router {
     private function resolveClassAttributes(ReflectionClass $reflection, ReflectionAttribute $classRouteAttr, RouteDefinition $route): RouteDefinition {
 
         $classRoute = trim($classRouteAttr->newInstance()->path, '/ ');
-        
+
         $pattern = $route->pattern;
         $base_segment = RouteUtility::extractFirstSegment($pattern);
 
