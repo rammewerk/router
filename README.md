@@ -46,6 +46,7 @@ unnecessary complexity - delivering performance and flexibility in a simple, int
 - [Performance and Speed](#-performance-and-speed)
 - [Closure-Based Routes](#-closure-based-routes)
 - [PSR-7 & PSR-15 Support](#-psr-7--psr-15-support)
+- [Attribute-Based Routing](#-attribute-based-routing)
 - [Benchmark](#-benchmark)
 
 ## 🎯 Project Goals
@@ -603,6 +604,7 @@ This benchmark test was conducted on **PHP 8.4 CLI**, calling a **PHP-FPM server
 router was **warmed up** before testing to ensure a fair comparison.
 
 #### Benchmark Setup:
+
 - **150 different routes** with a mix of **simple and complex** paths, including a **dynamic parameter**.
 - Each route was called **500 times**, totaling **75,000 route resolutions per test**.
 - The **median time** was recorded after **30 test runs** for each package.
@@ -616,9 +618,11 @@ router was **warmed up** before testing to ensure a fair comparison.
 
 #### Key Takeaways:
 
-- **Rammewerk Router outperformed all tested routers** in this scenario, offering **more than twice the speed of FastRoute** and
+- **Rammewerk Router outperformed all tested routers** in this scenario, offering **more than twice the speed of
+  FastRoute** and
   significantly faster execution than Symfony Router.
-- **Memory usage was slightly higher** compared to some alternatives, but the trade-off resulted in substantial performance
+- **Memory usage was slightly higher** compared to some alternatives, but the trade-off resulted in substantial
+  performance
   gains.
 - FastRoute showed competitive results when handling a small number of different routes, performing slightly better in
   such cases.
