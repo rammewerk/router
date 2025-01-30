@@ -3,7 +3,9 @@ CHANGELOG
 
 0.9.5
 ---
-- Removed option to set another default method than 'index' on class-based routes
+- **Simplified API** – Removed the ability to override the default method in class-based routes. With attribute support, this is now the preferred approach for customizing default methods instead of relying on index.
+- **Performance Enhancements** – Refactored core logic for better efficiency and faster route resolution.
+- **General Improvements** – Minor optimizations and bug fixes for improved stability.
 
 0.9.4
 ---
