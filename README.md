@@ -602,8 +602,7 @@ Rammewerk Router is designed for speed and minimal overhead, ensuring fast route
 This benchmark test was conducted on **PHP 8.4 CLI**, calling a **PHP-FPM server with opcache enabled** via curl. Each
 router was **warmed up** before testing to ensure a fair comparison.
 
-Benchmark Setup:
-
+#### Benchmark Setup:
 - **150 different routes** with a mix of **simple and complex** paths, including a **dynamic parameter**.
 - Each route was called **500 times**, totaling **75,000 route resolutions per test**.
 - The **median time** was recorded after **30 test runs** for each package.
