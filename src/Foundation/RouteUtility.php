@@ -20,23 +20,10 @@ class RouteUtility {
     }
 
 
-    public static function extractLastSegment(string &$path): string {
-        if (($p = strrpos($path, '/')) !== false) {
-            $lastSegment = substr($path, $p + 1);
-            $path = substr($path, 0, $p);
-            return $lastSegment;
-        }
-        $lastSegment = $path;
-        $path = '';
-        return $lastSegment;
-    }
-
-
-
 
     public static function prependSegment(string &$path, string $segment): void {
         if ($segment === '') return;
-        $path = $segment . ($path !== '' ? '/' . ltrim($path, '/') : '');
+        $path = $segment . ($path !== '' ? '/' . ltrim($path, '/ ') : '');
     }
 
 
@@ -48,15 +35,8 @@ class RouteUtility {
 
 
 
-    public static function removeLastSegmentFromMethodName(string &$path): string {
-        if (($p = strpos($path, '_')) !== false) {
-            $lastSegment = substr($path, $p + 1);
-            $path = substr($path, 0, $p);
-            return $lastSegment;
-        }
-        $lastSegment = $path;
-        $path = '';
-        return $lastSegment;
+    public static function convertMethodNameToPath(string $method_name): string {
+        return str_replace('_', '/', $method_name);
     }
 
 

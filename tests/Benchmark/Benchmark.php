@@ -49,7 +49,8 @@ abstract class Benchmark {
         $class = array_pop($classExploded);
 
         // Sort results by time, fastest first
-        usort($results, static fn($a, $b) => $a[0] <=> $b[0]);
+        uasort($results, static fn($a, $b) => $a[0] <=> $b[0]);
+
 
         // Get the fastest time for percentage calculations
         $fastestTime = reset($results)[0];

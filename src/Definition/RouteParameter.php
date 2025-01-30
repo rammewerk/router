@@ -13,7 +13,6 @@ class RouteParameter {
     public bool $builtIn = false;
     public string $type = '';
     public mixed $defaultValue = null;
-    public bool $isUnionType = false;
     public ?string $enum = null;
 
 

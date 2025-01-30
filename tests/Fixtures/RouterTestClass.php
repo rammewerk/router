@@ -10,8 +10,14 @@ class RouterTestClass {
 
 
 
-    public function index(): void {
-        echo 'Hello';
+    public function index(): string {
+        return 'index';
+    }
+
+
+
+    public function no_return(): void {
+        echo 'Printed';
     }
 
 

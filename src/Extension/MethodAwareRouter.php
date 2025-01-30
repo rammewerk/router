@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rammewerk\Router\Adapters;
+namespace Rammewerk\Router\Extension;
 
 use Closure;
 use Rammewerk\Router\Definition\RouteInterface;

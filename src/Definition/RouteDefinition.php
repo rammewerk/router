@@ -17,9 +17,6 @@ final class RouteDefinition implements RouteInterface {
     /** @var string|null The class method to call */
     public private(set) ?string $classMethod = null;
 
-    /** @var ?string The route handler default method */
-    public private(set) ?string $default_method = null;
-
     public string $nodeContext = '';
 
     /** @var string The leftover part of the path still being worked on. */
@@ -28,9 +25,7 @@ final class RouteDefinition implements RouteInterface {
     /** @var null|Closure(mixed[], object|null): mixed */
     public ?Closure $factory = null;
 
-    /**
-     * @var mixed|ReflectionMethod
-     */
+    /** @var null|ReflectionMethod|ReflectionFunction Reflection cache */
     public ReflectionMethod|ReflectionFunction|null $reflection = null;
 
 
@@ -60,14 +55,6 @@ final class RouteDefinition implements RouteInterface {
             throw new LogicException('Setting method on closure route is not supported');
         }
         $this->classMethod = $method;
-        return $this;
-    }
-
-
-
-    /** @inheritDoc */
-    public function defaultMethod(string $method_name): RouteInterface {
-        $this->default_method = $method_name;
         return $this;
     }
 

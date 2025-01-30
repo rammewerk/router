@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Rammewerk\Router\Adapters;
+namespace Rammewerk\Router\Extension;
 
 use Closure;
 use Psr\Http\Message\ResponseInterface;
@@ -15,7 +15,7 @@ use Rammewerk\Router\Router;
 class PsrRouter extends Router {
 
     /**
-     * @param Closure $middlewareQueue
+     * @param array<Closure():object> $middlewareQueue
      * @param Closure(ServerRequestInterface):ResponseInterface $requestHandler
      * @param null|object $serverRequest
      *
@@ -30,7 +30,7 @@ class PsrRouter extends Router {
         return new class($middlewareQueue, $requestHandler) implements RequestHandlerInterface {
 
             /**
-             * @param Closure $middlewareQueue
+             * @param array<Closure():object> $middlewareQueue
              * @param Closure(ServerRequestInterface):ResponseInterface $requestHandler
              */
             public function __construct(private array $middlewareQueue, private readonly Closure $requestHandler) {}
@@ -49,7 +49,6 @@ class PsrRouter extends Router {
 
                 $middleware = array_shift($this->middlewareQueue)();
 
-                /** @phpstan-ignore instanceof.alwaysTrue */
                 return ($middleware instanceof MiddlewareInterface)
                     ? $middleware->process($request, $this)
                     : throw new RouterConfigurationException('Middleware must implement MiddlewareInterface');

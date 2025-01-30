@@ -28,14 +28,4 @@ interface RouteInterface {
 
 
 
-    /**
-     * Override the default method name
-     *
-     * @param string $method_name
-     *
-     * @return RouteInterface
-     */
-    public function defaultMethod(string $method_name): RouteInterface;
-
-
 }

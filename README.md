@@ -513,7 +513,7 @@ drop-in replacement for the default Router when working with PSR-compliant middl
 Here's an example of PSR-7 & PSR-15 Usage:
 
 ```php
-use Rammewerk\Router\Adapters\PsrRouter;
+use Rammewerk\Router\Extension\PsrRouter;
 
 $router = new PsrRouter(static fn(string $class) => $container->get($class));
 

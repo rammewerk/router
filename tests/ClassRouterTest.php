@@ -26,25 +26,37 @@ class ClassRouterTest extends TestCase {
 
 
 
+    public function testOverride(): void {
+        $this->router->add('/number', RouterTestClass::class)->classMethod('index');
+        $this->router->add('/number', RouterTestClass::class)->classMethod('number');
+        // Line below should not affect the routes above
+        $this->router->add('/*/number', RouterTestClass::class)->classMethod('check');
+        $response = $this->router->dispatch('/number/20');
+        $this->assertEquals(20, $response);
+    }
+
+
+
     public function testClassRouterIndex(): void {
         $this->router->add('/', RouterTestClass::class);
 
         // Start output buffering
         ob_start();
 
-        $this->router->dispatch('/');
+        $this->router->dispatch('/no/return');
 
         // Get the content from the output buffer and clean it
         $output = ob_get_clean();
 
         // Check if 'hello' is printed
-        $this->assertEquals('Hello', $output);
+        $this->assertEquals('Printed', $output);
     }
 
 
 
     public function testTooManyParameters(): void {
         $this->expectException(InvalidRoute::class);
+        $this->expectExceptionMessage('Too many arguments');
         $this->router->add('/', RouterTestClass::class);
         $response = $this->router->dispatch('/wrong');
     }

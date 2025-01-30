@@ -9,8 +9,14 @@ use Rammewerk\Router\Router;
 
 require __DIR__ . '/vendor/autoload.php';
 
-$memoryBefore = memory_get_usage(); // Memory usage before the test
-$memoryPeakBefore = memory_get_peak_usage()/1024/1024;                     // Peak memory after the test
+$router = new Router(static fn($class) => new $class());
+$router->add('/', \Rammewerk\Router\Tests\Fixtures\ParameterTestRoute::class)->classMethod('stringTest');
+
+echo $router->dispatch('/kristoffer');
+die;
+
+$memoryBefore = memory_get_usage();                                            // Memory usage before the test
+$memoryPeakBefore = memory_get_peak_usage() / 1024 / 1024;                     // Peak memory after the test
 $router = new Router(fn($class) => new $class());
 
 $benchmark = new \Rammewerk\Router\Tests\Benchmark\BenchmarkTest($router);

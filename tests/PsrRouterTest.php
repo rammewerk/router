@@ -10,7 +10,7 @@ use Nyholm\Psr7\Stream;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Rammewerk\Component\Container\Container;
-use Rammewerk\Router\Adapters\PsrRouter;
+use Rammewerk\Router\Extension\PsrRouter;
 use Rammewerk\Router\Definition\RouteDefinition;
 use Rammewerk\Router\Error\InvalidRoute;
 use Rammewerk\Router\Error\RouterConfigurationException;

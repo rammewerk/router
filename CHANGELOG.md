@@ -1,6 +1,10 @@
 CHANGELOG
 =========
 
+0.9.5
+---
+- Removed option to set another default method than 'index' on class-based routes
+
 0.9.4
 ---
 
