@@ -46,7 +46,7 @@ unnecessary complexity - delivering performance and flexibility in a simple, int
 - [Performance and Speed](#-performance-and-speed)
 - [Closure-Based Routes](#-closure-based-routes)
 - [PSR-7 & PSR-15 Support](#-psr-7--psr-15-support)
-- [Attribute-Based Routing](#-attribute-based-routing)
+- [Route Attributes](#-route-attributes)
 - [Benchmark](#-benchmark)
 
 ## 🎯 Project Goals
@@ -537,7 +537,7 @@ Rammewerk Router’s architecture, enabling developers to adapt it to various st
 
 Here’s an updated section for your README documentation to reflect the usage and rules for Route attributes:
 
-## 🛠️ Route Attributes
+## 🛠 Route Attributes
 
 The `#[Route]` attribute allows you to define routes directly on classes and methods for a clean and declarative
 approach to routing.
@@ -596,7 +596,7 @@ class DashboardRoute {
 - **Clarity**: Explicitly linking class-level routes to base segments keeps the logic predictable and easy to debug.
 - **Flexibility**: You can use wildcards and trailing parameters to build dynamic and flexible route patterns.
 
-## 🏃‍♀️ Benchmark
+## 🏃 Benchmark
 
 Rammewerk Router is designed for speed and minimal overhead, ensuring fast route resolution even in complex scenarios.
 
