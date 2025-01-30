@@ -1,18 +1,24 @@
 Rammewerk Router
 ====
 
-Rammewerk Router takes a fresh approach to PHP routing. Built for PHP 8.4, it’s lightweight, flexible, and built around
-class-based routing.
+Rammewerk Router is a **lightweight**, **high-performance PHP router** designed for modern applications. It prioritizes
+**fast
+route resolution, minimal overhead**, and a straightforward setup. Built for **PHP 8.4**, it takes a modern, class-based
+approach while remaining flexible and powerful in its minimalism.
 
-With features like type-safe parameters, dependency injection support, and middleware, it gives you powerful tools
-without unnecessary complexity. Minimal code, minimal configuration - just check out the code yourself.
+With **minimal configuration** required, Rammewerk Router is **easy to set up** while still offering a wide range of
+features
+like type-safe parameters, dependency injection, and middleware. It provides **just the right amount of structure**
+without
+unnecessary complexity - delivering performance and flexibility in a simple, intuitive package.
 
 #### Key Features:
 
 - **Class-Based Routing**: Organize routes cleanly and intuitively.
-- **Type-Safe Parameters**: Let the router handle types and dependencies for you.
+- **Attribute-Based Routing**: Define routes directly in classes and methods for a clean, declarative approach.
+- **Type-Safe Parameters**: Smart detection of route dependencies and parameters.
 - **Middleware Support**: Add functionality like authentication or logging.
-- **Minimal & Focused**: Designed to do one thing well without unnecessary complexity.
+- **Minimal Yet Powerful**: Focused on simplicity while offering the flexibility you need.
 
 ## Table of Contents
 
@@ -138,19 +144,6 @@ class ProfileRoute {
 The `index()` method is the default handler for the base path of a class-based route. In this case, accessing `/profile`
 triggers the `index()` method.
 
-If needed, you can set a change default method during initialization or on a per-route basis:
-
-```php
-// Global override for all class-based routes
-$router = new Router( default_method: 'show' );
-
-// Override for a single route
-$roter->add(...)->defaultMethod('show');
-```
-
-In this case, a `show()` method will handle base path requests. If default method isn’t defined in class, accessing
-`/profile` will throw an `InvalidRoute` exception.
-
 You can also define class routes with a single `__invoke()` method. This will be called if no other method matches or is
 defined. The `__invoke()` method is best used when the class doesn’t have additional route methods, keeping it simple
 and focused.
@@ -224,7 +217,15 @@ parameters `123` and `notification`.
 
 ## Parameter types
 
-### Enums
+- Parameter names don’t matter, but their order does.
+- If a parameter isn’t in the path, it must be **optional** or **nullable** to match.
+- Type hints are supported, and path segments are converted to match (`int`, `float`, `bool`, `string`). Undefined or
+  mixed defaults to string.
+- Parameters that can't convert to defined type are rejected, and route won't match.
+- Paths must match exactly. For example, `/profile/edit/123` won’t match `/profile/edit/123/something`.
+- Use a variadic parameter (`...$args`) to allow extra subpaths to match.
+
+#### Enums
 
 You can use both PHP backed enumerations and regular enums as route parameters because Rammewerk will convert them
 automatically based on the given path argument.
@@ -256,16 +257,6 @@ class Orders {
 ```
 
 The router will automatically convert the parameter to the type specified in the method signature.
-
-**Notes:**
-
-- Parameter names don’t matter, but their order does.
-- If a parameter isn’t in the path, it must be **optional** or **nullable** to match.
-- Type hints are supported, and path segments are converted to match (`int`, `float`, `bool`, `string`). Undefined or
-  mixed defaults to string.
-- Parameters that can't convert to defined type are rejected, and route won't match.
-- Paths must match exactly. For example, `/profile/edit/123` won’t match `/profile/edit/123/something`.
-- Use a variadic parameter (`...$args`) to allow extra subpaths to match.
 
 ### Parameter class dependencies
 
