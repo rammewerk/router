@@ -73,10 +73,14 @@ class ParameterTestRoute {
         return $argument;
     }
 
+
+
     #[Route('/enum/optional')]
     public function enumIntOptional(TestIntEnum $argument = TestIntEnum::A): TestIntEnum {
         return $argument;
     }
+
+
 
     #[Route('/enum/status')]
     public function enumStatus(NonBackedEnum $argument): NonBackedEnum {
@@ -87,6 +91,19 @@ class ParameterTestRoute {
 
     #[Route('/nullable')]
     public function nullableTest(?string $argument): ?string {
+        return $argument;
+    }
+
+
+    #[Route('/dateTime')]
+    public function dateTimeTest(\DateTime $argument): \DateTime {
+        return $argument;
+    }
+
+
+
+    #[Route('/dateTimeImmutable')]
+    public function dateTimeImmutableTest(\DateTimeImmutable $argument): \DateTimeImmutable {
         return $argument;
     }
 

@@ -14,6 +14,8 @@ use Rammewerk\Router\Extension\PsrRouter;
 use Rammewerk\Router\Definition\RouteDefinition;
 use Rammewerk\Router\Error\InvalidRoute;
 use Rammewerk\Router\Error\RouterConfigurationException;
+use Rammewerk\Router\Tests\Benchmark\ClassRoute;
+use Rammewerk\Router\Tests\Fixtures\Middleware\MiddlewareAfterTest;
 use Rammewerk\Router\Tests\Fixtures\PSR\AddAttributeMiddleware;
 use Rammewerk\Router\Tests\Fixtures\PSR\AddCustomHeaderMiddleware;
 use Rammewerk\Router\Tests\Fixtures\PSR\PsrRouterClass;
@@ -127,7 +129,7 @@ class PsrRouterTest extends TestCase {
         $this->expectException(RouterConfigurationException::class);
         $this->router->add('/correct', function (): ResponseInterface {
             return new Response();
-        })->middleware([RouteDefinition::class]);
+        })->middleware([MiddlewareAfterTest::class]);
         $this->router->dispatch('/correct', new ServerRequest('GET', 'https://example.com/correct'));
     }
 
@@ -152,6 +154,7 @@ class PsrRouterTest extends TestCase {
         $this->assertInstanceOf(ResponseInterface::class, $response);
         $this->assertEquals('This is index', $response->getBody()->getContents());
     }
+
 
 
     public function testPsrRoutingClassWithParameters(): void {

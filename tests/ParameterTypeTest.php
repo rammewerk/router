@@ -163,6 +163,18 @@ class ParameterTypeTest extends TestCase {
     }
 
 
+    public function testDateTimeParameter(): void {
+        $response = $this->router->dispatch('/parameters/dateTime/2022-01-01');
+        $this->assertInstanceOf(\DateTime::class, $response);
+    }
+
+
+    public function testDateTimeImmutableParameter(): void {
+        $response = $this->router->dispatch('/parameters/dateTimeImmutable/2022-01-01');
+        $this->assertInstanceOf(\DateTimeImmutable::class, $response);
+    }
+
+
 
     public function testMixedParameter(): void {
         $response = $this->router->dispatch('/parameters/mixed/test');

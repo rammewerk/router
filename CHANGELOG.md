@@ -1,9 +1,18 @@
 CHANGELOG
 =========
 
+0.9.6
+---
+
+- Dependency resolver is no longer required, but we still recommend it!
+- Added support to disable reflection for added routes, which can improve performance when reflection isn't needed.
+  `$router->add(...)->disableReflection();`
+
 0.9.5
 ---
-- **Simplified API** – Removed the ability to override the default method in class-based routes. With attribute support, this is now the preferred approach for customizing default methods instead of relying on index.
+
+- **Simplified API** – Removed the ability to override the default method in class-based routes. With attribute support,
+  this is now the preferred approach for customizing default methods instead of relying on index.
 - **Performance Enhancements** – Refactored core logic for better efficiency and faster route resolution.
 - **General Improvements** – Minor optimizations and bug fixes for improved stability.
 

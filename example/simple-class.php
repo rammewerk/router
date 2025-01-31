@@ -23,7 +23,6 @@ class ProfileRoutes {
     }
 
 
-
     public function user(string $name): string {
         return "You have visited /profile/user/$name";
     }

@@ -28,4 +28,17 @@ interface RouteInterface {
 
 
 
+    /**
+     * Disables reflection for this route.
+     *
+     * When called, this prevents the Router from using PHP's Reflection API
+     * to inspect the handler's parameters. This can improve performance,
+     * especially in high-throughput scenarios
+     *
+     * @return RouteInterface
+     */
+    public function disableReflection(): RouteInterface;
+
+
+
 }

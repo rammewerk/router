@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace Rammewerk\Router\Definition;
 
 use Closure;
-use LogicException;
 use ReflectionFunction;
 use ReflectionMethod;
 
-final class RouteDefinition implements RouteInterface {
+abstract class RouteDefinition implements RouteInterface {
+
+    public readonly string $pattern;
 
     /** @var array<class-string|object> List of middleware to run before handler */
-    public private(set) array $middleware = [];
+    public protected(set) array $middleware = [];
 
-    /** @var string|null The class method to call */
-    public private(set) ?string $classMethod = null;
+    /** @var bool Disables reflection for this route */
+    public protected(set) bool $skipReflection = false;
 
     public string $nodeContext = '';
 
@@ -30,31 +31,9 @@ final class RouteDefinition implements RouteInterface {
 
 
 
-    /**
-     * @param string $pattern
-     * @param class-string|Closure $handler
-     */
-    public function __construct(
-        public readonly string $pattern,
-        public string|Closure $handler,
-    ) {}
-
-
-
     /** @inheritDoc */
     public function middleware(array $middleware): RouteInterface {
         $this->middleware = array_merge($this->middleware, $middleware);
-        return $this;
-    }
-
-
-
-    /** @inheritDoc */
-    public function classMethod(string $method): RouteInterface {
-        if ($this->handler instanceof Closure) {
-            throw new LogicException('Setting method on closure route is not supported');
-        }
-        $this->classMethod = $method;
         return $this;
     }
 
@@ -67,6 +46,9 @@ final class RouteDefinition implements RouteInterface {
         return $this->context !== '' ? explode('/', $this->context) : [];
     }
 
+
+
+    abstract public function getHandler();
 
 
 }
