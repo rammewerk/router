@@ -148,6 +148,10 @@ class Router {
         $route->context = $route->nodeContext;
         $route->nodeContext = '';
 
+        if ($route->skipReflection && $route instanceof ClosureRoute) {
+            return ($route->getHandler())(...$route->getArguments());
+        }
+
         if (!$route->factory) {
             $route = $this->requestHandlerFactory($route);
         }
@@ -176,14 +180,6 @@ class Router {
      * @throws InvalidRoute
      */
     private function requestHandlerFactory(RouteDefinition $route): RouteDefinition {
-
-        if ($route->skipReflection && $route instanceof ClosureRoute) {
-            $handler = $route->getHandler();
-            $route->factory = static function (array $context) use ($handler) {
-                return $handler(...$context);
-            };
-            return $route;
-        }
 
         if (!$route->reflection) {
             $route = $this->reflectHandler($route);

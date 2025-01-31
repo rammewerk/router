@@ -16,7 +16,7 @@ class ClosureRoute extends RouteDefinition {
      */
     public function __construct(
         public readonly string $pattern,
-        private Closure $handler,
+        private readonly Closure $handler,
     ) {}
 
 
@@ -29,6 +29,9 @@ class ClosureRoute extends RouteDefinition {
 
     public function disableReflection(): RouteInterface {
         $this->skipReflection = true;
+        if ($this->middleware) {
+            throw new RouterConfigurationException('Middleware is not supported unless reflection is enabled');
+        }
         return $this;
     }
 

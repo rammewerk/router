@@ -34,6 +34,9 @@ abstract class RouteDefinition implements RouteInterface {
     /** @inheritDoc */
     public function middleware(array $middleware): RouteInterface {
         $this->middleware = array_merge($this->middleware, $middleware);
+        if ($this->skipReflection) {
+            throw new \LogicException('Middleware is not supported unless reflection is enabled');
+        }
         return $this;
     }
 
