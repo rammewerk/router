@@ -8,9 +8,9 @@ use Closure;
 use ReflectionFunction;
 use ReflectionMethod;
 
-abstract class RouteDefinition implements RouteInterface {
+class RouteDefinition implements RouteInterface {
 
-    public readonly string $pattern;
+    #public readonly string $pattern;
 
     /** @var array<class-string|object> List of middleware to run before handler */
     public protected(set) array $middleware = [];
@@ -29,6 +29,11 @@ abstract class RouteDefinition implements RouteInterface {
     /** @var null|ReflectionMethod|ReflectionFunction Reflection cache */
     public ReflectionMethod|ReflectionFunction|null $reflection = null;
 
+
+    public function __construct(
+        public readonly string $pattern,
+        private readonly string|Closure $handler,
+    ) {}
 
 
     /** @inheritDoc */
@@ -51,7 +56,19 @@ abstract class RouteDefinition implements RouteInterface {
 
 
 
-    abstract public function getHandler();
+    public function getHandler() {}
+
+
+
+    public function classMethod(string $method): RouteInterface {
+        // TODO: Implement classMethod() method.
+    }
+
+
+
+    public function disableReflection(): RouteInterface {
+        // TODO: Implement disableReflection() method.
+    }
 
 
 }

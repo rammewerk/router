@@ -14,37 +14,31 @@ class ClassRoute {}
 
 class BenchmarkTest extends Benchmark {
 
-    protected int $iterations = 1000000;
+    protected int $iterations = 1;
 
 
 
     public function case(): void {
 
-        $route = new RouteDefinition('/', ParameterTestRoute::class)->classMethod('stringTest');
-        $instance = new ParameterTestRoute();
+        $testData = __DIR__ . '/TestData/test_suite_7_results.json';
+        $results = json_decode(file_get_contents($testData), true);
 
-        $handler = ParameterTestRoute::class;
-        $handler_class = new ClassRoute();
 
-        $this->benchmark('is_array', function () use ($handler) {
-            if (is_array($handler)) {
-                throw new \Exception('Failed');
+        $this->benchmark('dispatch', function () use ($results) {
+            $router = new Router();
+            foreach ($results as $path) {
+                $router->add($path, static fn() => $path)->disableReflection();
+            }
+            for ($i = 0; $i < 5; $i++) {
+                foreach ($results as $path) {
+                    $res = $router->dispatch($path);
+                    if ($res !== $path) {
+                        throw new \Exception('Failed');
+                    }
+                }
             }
         });
 
-        $this->benchmark('is_string', function () use ($handler) {
-            if (!is_string($handler)) {
-                throw new \Exception('Failed');
-            }
-        });
-
-        $this->benchmark('isClass', function () use ($handler_class) {
-            if ($handler_class instanceof ClassRoute) {
-
-            } else {
-                throw new \Exception('Failed');
-            }
-        });
 
     }
 

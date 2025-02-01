@@ -51,7 +51,7 @@ class Router {
     public array $routes = [];
 
     /** @var Node Radix tree of routes */
-    private Node $node;
+    private Node $nodeCompact;
 
     /** @var string The current path being matched */
     private string $path = '';
@@ -76,7 +76,7 @@ class Router {
     public function __construct(?Closure $container = null) {
         /** @var ?Closure(class-string):object $container */
         $this->container = $container ?? static fn(string $class): object => new $class();
-        $this->node = new Node();
+        $this->nodeCompact = new Node();
     }
 
 
@@ -92,14 +92,14 @@ class Router {
      * @return RouteInterface
      */
     public function add(string $pattern, Closure|string $handler): RouteInterface {
-        $pattern = trim($pattern, '/ ');
+        $pattern = trim($pattern, '/');
 
         $route = $handler instanceof Closure ?
             new ClosureRoute($pattern, $handler) :
             new ClassRoute($pattern, $handler);
 
         $this->routes[$pattern] = $route;
-        $this->node->insert($pattern, $route);
+        $this->nodeCompact->insert($pattern, $route);
         $this->active_group?->registerRoute($route);
         return $route;
     }
@@ -141,7 +141,7 @@ class Router {
         $path = $this->path = trim($path ?? $this->getUriPath(), '/ ');
 
         $route = $this->routes[$path]
-            ?? $this->node->match($path)
+            ?? $this->nodeCompact->match($path)
             ?? throw new InvalidRoute("No route found for path: $path");
 
         // Reset nodeContext
@@ -367,7 +367,7 @@ class Router {
      * @return RouteDefinition|null
      */
     private function swapRoute(RouteDefinition $route): ?RouteDefinition {
-        $swap_route = $this->node->match($this->path);
+        $swap_route = $this->nodeCompact->match($this->path);
         if (!$swap_route) return null;
         $route->context = '';
         $swap_route->middleware($route->middleware);
