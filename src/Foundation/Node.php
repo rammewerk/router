@@ -51,6 +51,7 @@ class Node {
                     $childNode->compact = substr($currentNode->compact, strlen($commonPrefix));
 
                     $childKey = RouteUtility::extractFirstSegment($childNode->compact);
+                    $childNode->compact = trim($childNode->compact, '/ ');
 
                     // Reset the current node to hold only the common prefix.
                     $currentNode->route = null;
