@@ -14,30 +14,38 @@ class ClassRoute {}
 
 class BenchmarkTest extends Benchmark {
 
-    protected int $iterations = 1;
+    protected int $iterations = 10;
 
 
 
     public function case(): void {
 
-        $testData = __DIR__ . '/TestData/test_suite_7_results.json';
-        $results = json_decode(file_get_contents($testData), true);
+        $testPathsData = __DIR__ . '/../TestData/test_suite_1_paths.json';
+        $testPaths = json_decode(file_get_contents($testPathsData), true);
 
+        $testResults = __DIR__ . '/../TestData/test_suite_1_results.json';
+        $results = json_decode(file_get_contents($testResults), true);
 
-        $this->benchmark('dispatch', function () use ($results) {
+        $count = 0;
+
+        $this->benchmark('dispatch', function () use ($testPaths, $results, &$count) {
             $router = new Router();
-            foreach ($results as $path) {
-                $router->add($path, static fn() => $path)->disableReflection();
+            foreach ($testPaths as $path) {
+                $path = str_replace('!S!', '', $path);
+                $router->add($path, static fn($v) => $path . $v)->disableReflection();
             }
             for ($i = 0; $i < 5; $i++) {
                 foreach ($results as $path) {
                     $res = $router->dispatch($path);
+                    $count++;
                     if ($res !== $path) {
-                        throw new \Exception('Failed');
+                        throw new \Exception('Failed ' . $res . ' vs ' . $path);
                     }
                 }
             }
         });
+
+        echo 'Count: ' . $count;
 
 
     }

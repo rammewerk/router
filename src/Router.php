@@ -19,6 +19,7 @@ use Rammewerk\Router\Definition\RouteParameter;
 use Rammewerk\Router\Error\InvalidRoute;
 use Rammewerk\Router\Error\RouterConfigurationException;
 use Rammewerk\Router\Foundation\Node;
+use Rammewerk\Router\Foundation\NodeInterface;
 use Rammewerk\Router\Foundation\Route;
 use Rammewerk\Router\Foundation\RouteUtility;
 use ReflectionAttribute;
@@ -51,7 +52,7 @@ class Router {
     public array $routes = [];
 
     /** @var Node Radix tree of routes */
-    private Node $nodeCompact;
+    private NodeInterface $node;
 
     /** @var string The current path being matched */
     private string $path = '';
@@ -76,7 +77,7 @@ class Router {
     public function __construct(?Closure $container = null) {
         /** @var ?Closure(class-string):object $container */
         $this->container = $container ?? static fn(string $class): object => new $class();
-        $this->nodeCompact = new Node();
+        $this->node = new Node();
     }
 
 
@@ -99,7 +100,7 @@ class Router {
             new ClassRoute($pattern, $handler);
 
         $this->routes[$pattern] = $route;
-        $this->nodeCompact->insert($pattern, $route);
+        $this->node->insert($pattern, $route);
         $this->active_group?->registerRoute($route);
         return $route;
     }
@@ -141,7 +142,7 @@ class Router {
         $path = $this->path = trim($path ?? $this->getUriPath(), '/ ');
 
         $route = $this->routes[$path]
-            ?? $this->nodeCompact->match($path)
+            ?? $this->node->match($path)
             ?? throw new InvalidRoute("No route found for path: $path");
 
         // Reset nodeContext
@@ -367,7 +368,7 @@ class Router {
      * @return RouteDefinition|null
      */
     private function swapRoute(RouteDefinition $route): ?RouteDefinition {
-        $swap_route = $this->nodeCompact->match($this->path);
+        $swap_route = $this->node->match($this->path);
         if (!$swap_route) return null;
         $route->context = '';
         $swap_route->middleware($route->middleware);

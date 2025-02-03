@@ -17,6 +17,7 @@
             <directory>./tests/</directory>
             <exclude>./tests/Fixtures</exclude>
             <exclude>./tests/Benchmark</exclude>
+            <exclude>./tests/TestData</exclude>
         </testsuite>
     </testsuites>
 
