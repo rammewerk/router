@@ -66,8 +66,11 @@ class Node implements NodeInterface {
 
             $currentNode->children[$segment] = new self();
             $currentNode = $currentNode->children[$segment];
-            $currentNode->compact = $path;
-            break;
+
+            if (!str_contains($path, '*')) {
+                $currentNode->compact = $path;
+                break;
+            }
 
         }
 

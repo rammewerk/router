@@ -1,7 +1,7 @@
 CHANGELOG
 =========
 
-0.9.7
+0.9.8
 ---
 
 - New lookup/matching algorithm for faster route resolution

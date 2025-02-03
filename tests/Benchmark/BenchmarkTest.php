@@ -20,10 +20,10 @@ class BenchmarkTest extends Benchmark {
 
     public function case(): void {
 
-        $testPathsData = __DIR__ . '/../TestData/test_suite_1_paths.json';
+        $testPathsData = __DIR__ . '/../TestData/test_suite_8_paths.json';
         $testPaths = json_decode(file_get_contents($testPathsData), true);
 
-        $testResults = __DIR__ . '/../TestData/test_suite_1_results.json';
+        $testResults = __DIR__ . '/../TestData/test_suite_8_results.json';
         $results = json_decode(file_get_contents($testResults), true);
 
         $count = 0;
@@ -31,14 +31,14 @@ class BenchmarkTest extends Benchmark {
         $this->benchmark('dispatch', function () use ($testPaths, $results, &$count) {
             $router = new Router();
             foreach ($testPaths as $path) {
-                $path = str_replace('!S!', '', $path);
-                $router->add($path, static fn($v) => $path . $v)->disableReflection();
+                $path = rtrim(str_replace(['!S!', '!D!'], '*', $path), '*');
+                $router->add($path, static fn(string $d, string $v) => 'true')->disableReflection();
             }
             for ($i = 0; $i < 5; $i++) {
                 foreach ($results as $path) {
                     $res = $router->dispatch($path);
                     $count++;
-                    if ($res !== $path) {
+                    if ($res !== 'true') {
                         throw new \Exception('Failed ' . $res . ' vs ' . $path);
                     }
                 }
