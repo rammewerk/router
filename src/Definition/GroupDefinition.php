@@ -21,7 +21,7 @@ final class GroupDefinition implements GroupInterface {
     /** @inheritDoc */
     public function middleware(array $middleware): GroupInterface {
         foreach ($this->routes as $route) {
-            $route->middleware($middleware);
+            $route->middleware($middleware, true);
         }
         return $this;
     }

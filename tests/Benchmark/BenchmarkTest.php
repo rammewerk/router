@@ -26,9 +26,35 @@ class BenchmarkTest extends Benchmark {
         $testResults = __DIR__ . '/../TestData/test_suite_8_results.json';
         $results = json_decode(file_get_contents($testResults), true);
 
+        $testStatic = array_map(function ($path) {
+            if (($p = strrpos($path, '/')) !== false) {
+                $lastSegment = substr($path, $p + 1);
+                return rtrim(substr($path, 0, $p + 1), '/');
+            }
+            return $path;
+        }, $results);
+
         $count = 0;
 
-        $this->benchmark('dispatch', function () use ($testPaths, $results, &$count) {
+        $this->benchmark('static', function () use ($results, $testStatic, &$count) {
+            $router = new Router();
+            foreach ($testStatic as $static_path) {
+                $router->add($static_path, static fn() => $static_path)->disableReflection();
+            }
+            for ($i = 0; $i < 5; $i++) {
+                foreach ($results as $path) {
+                    $res = $router->dispatch($path);
+                    $count++;
+                    if (!str_starts_with($path, $res)) {
+                        throw new \Exception('Failed ' . $res . ' vs ' . $path);
+                    }
+                }
+            }
+        });
+
+
+
+        $this->benchmark('dynamics', function () use ($testPaths, $results, &$count) {
             $router = new Router();
             foreach ($testPaths as $path) {
                 $path = rtrim(str_replace(['!S!', '!D!'], '*', $path), '*');

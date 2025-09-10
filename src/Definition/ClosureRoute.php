@@ -16,7 +16,7 @@ class ClosureRoute extends RouteDefinition {
      */
     public function __construct(
         public readonly string $pattern,
-        private readonly Closure $handler,
+        public readonly Closure $handler,
     ) {}
 
 
@@ -33,12 +33,6 @@ class ClosureRoute extends RouteDefinition {
             throw new RouterConfigurationException('Middleware is not supported unless reflection is enabled');
         }
         return $this;
-    }
-
-
-
-    public function getHandler(): \Closure {
-        return $this->handler;
     }
 
 

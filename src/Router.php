@@ -29,6 +29,19 @@ use ReflectionException;
 use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionNamedType;
+use function array_filter;
+use function array_map;
+use function array_shift;
+use function array_unshift;
+use function enum_exists;
+use function filter_var;
+use function is_null;
+use function is_numeric;
+use function is_string;
+use function parse_url;
+use function str_starts_with;
+use function strcasecmp;
+use function trim;
 use const PHP_URL_PATH;
 
 /**
@@ -99,7 +112,10 @@ class Router {
             new ClosureRoute($pattern, $handler) :
             new ClassRoute($pattern, $handler);
 
-        $this->routes[$pattern] = $route;
+        if (!str_contains($pattern, '*')) {
+            $this->routes[$pattern] = $route;
+        }
+
         $this->node->insert($pattern, $route);
         $this->active_group?->registerRoute($route);
         return $route;
@@ -150,7 +166,7 @@ class Router {
         $route->nodeContext = '';
 
         if ($route->skipReflection && $route instanceof ClosureRoute) {
-            return ($route->getHandler())(...$route->getArguments());
+            return ($route->handler)(...$route->getArguments());
         }
 
         if (!$route->factory) {
@@ -190,7 +206,7 @@ class Router {
         $route->reflection = null; // Free up memory
 
         if ($route instanceof ClosureRoute) {
-            $handler = $route->getHandler();
+            $handler = $route->handler;
             $route->factory = static function (array $context, object|null $request) use ($handler, $argumentFactory) {
                 /** @phpstan-ignore-next-line */
                 return $handler(...$argumentFactory($context, $request));
@@ -199,7 +215,7 @@ class Router {
             /** @var ClassRoute $route */
             $method = $route->classMethod;
             $container = $this->container;
-            $handler = $route->getHandler();
+            $handler = $route->handler;
             $route->factory = static function (array $context, object|null $request) use ($container, $handler, $method, $argumentFactory) {
                 return $container($handler)->{$method}(...$argumentFactory($context, $request));
             };
@@ -225,7 +241,7 @@ class Router {
         try {
 
             if ($route instanceof ClosureRoute) {
-                $route->reflection = new ReflectionFunction($route->getHandler());
+                $route->reflection = new ReflectionFunction($route->handler);
                 return $route;
             }
 
@@ -233,13 +249,13 @@ class Router {
             if ($route instanceof ClassRoute) {
 
                 if ($route->classMethod) {
-                    $route->reflection = new ReflectionMethod($route->getHandler(), $route->classMethod);
+                    $route->reflection = new ReflectionMethod($route->handler, $route->classMethod);
                     return $route->reflection->isPublic()
                         ? $route
                         : throw new RouterConfigurationException("Route method '$route->classMethod' is not a public method");
                 }
 
-                $classReflection = new ReflectionClass($route->getHandler());
+                $classReflection = new ReflectionClass($route->handler);
 
                 // 2. If class supports Route attribute, we only resolve attributes
                 if ($classRouteAttr = $classReflection->getAttributes(Route::class)[0] ?? null) {
@@ -284,7 +300,7 @@ class Router {
             if ($method_path !== 'index' && $method_path !== '__invoke') {
                 RouteUtility::appendSegment($pattern, $method_path);
             }
-            $this->addInternal($pattern, $route->getHandler(), $method);
+            $this->addInternal($pattern, $route->handler, $method);
         }
 
         return $this->swapRoute($route)
@@ -321,7 +337,7 @@ class Router {
                 if (!str_starts_with($path, $classRoute)) {
                     RouteUtility::prependSegment($path, $classRoute);
                 }
-                $this->addInternal($path, $route->getHandler(), $method);
+                $this->addInternal($path, $route->handler, $method);
             }
         }
 
@@ -471,6 +487,11 @@ class Router {
                 } catch (ReflectionException $e) {
                     throw new RouterConfigurationException("Unable to reflect enum type for route handler parameter '$set->name'", $e->getCode(), $e);
                 }
+            }
+
+            if (!$set->type && $parameter->getType() instanceof \ReflectionUnionType) {
+                /** @phpstan-ignore-next-line */
+                $set->unionTypes = array_map(static fn($t) => $t->getName(), $parameter->getType()->getTypes());
             }
 
             $parameterClosures[] = $set;

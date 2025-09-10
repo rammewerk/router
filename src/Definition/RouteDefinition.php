@@ -8,9 +8,8 @@ use Closure;
 use ReflectionFunction;
 use ReflectionMethod;
 
-class RouteDefinition implements RouteInterface {
 
-    #public readonly string $pattern;
+abstract class RouteDefinition implements RouteInterface {
 
     /** @var array<class-string|object> List of middleware to run before handler */
     public protected(set) array $middleware = [];
@@ -30,15 +29,12 @@ class RouteDefinition implements RouteInterface {
     public ReflectionMethod|ReflectionFunction|null $reflection = null;
 
 
-    public function __construct(
-        public readonly string $pattern,
-        private readonly string|Closure $handler,
-    ) {}
-
 
     /** @inheritDoc */
-    public function middleware(array $middleware): RouteInterface {
-        $this->middleware = array_merge($this->middleware, $middleware);
+    public function middleware(array $middleware, bool $prepend = false): RouteInterface {
+        $this->middleware = $prepend
+            ? array_merge($middleware, $this->middleware)
+            : array_merge($this->middleware, $middleware);
         if ($this->skipReflection) {
             throw new \LogicException('Middleware is not supported unless reflection is enabled');
         }
@@ -51,24 +47,9 @@ class RouteDefinition implements RouteInterface {
      * @return string[]
      */
     public function getArguments(): array {
-        return $this->context !== '' ? explode('/', $this->context) : [];
+        return $this->context !== '' ? \explode('/', $this->context) : [];
     }
 
-
-
-    public function getHandler() {}
-
-
-
-    public function classMethod(string $method): RouteInterface {
-        // TODO: Implement classMethod() method.
-    }
-
-
-
-    public function disableReflection(): RouteInterface {
-        // TODO: Implement disableReflection() method.
-    }
 
 
 }

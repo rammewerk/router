@@ -79,4 +79,34 @@ class MiddlewareTest extends TestCase {
     }
 
 
+
+    public function testMiddlewareGroupWithNestedMiddleware(): void {
+
+        $request = new RequestTest();
+
+        $this->router->group(function () {
+            $this->router->add('/group', function (RequestTest $req): string {
+                return 'Group';
+            })->middleware([
+                new MiddlewareAfterTest()
+            ]);
+        })->middleware([
+            MiddlewareBeforeTest::class,
+        ]);
+
+        $response = $this->router->dispatch('/group', $request);
+
+        // Assertions for the response
+        $this->assertSame('Group', $response);
+        $this->assertSame(2, $request->middleware_count);
+        $this->assertSame(
+            [
+                MiddlewareBeforeTest::class,
+                MiddlewareAfterTest::class
+            ],
+            $request->middlewares,
+        );
+    }
+
+
 }

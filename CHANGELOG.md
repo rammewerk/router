@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+0.9.9
+---
+
+- Added support for prepended middleware on routes. This is now the default for grouped routes, ensuring group middleware runs before each child route’s middleware.
+- Minor code improvements and refactoring.
+
 0.9.8
 ---
 

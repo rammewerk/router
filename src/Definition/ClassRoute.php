@@ -8,6 +8,9 @@ use Rammewerk\Router\Error\RouterConfigurationException;
 
 final class ClassRoute extends RouteDefinition {
 
+    /** @var string|null The class method to call */
+    public private(set) ?string $classMethod = null;
+
 
 
     /**
@@ -16,13 +19,8 @@ final class ClassRoute extends RouteDefinition {
      */
     public function __construct(
         public readonly string $pattern,
-        private readonly string $handler,
+        public readonly string $handler,
     ) {}
-
-
-
-    /** @var string|null The class method to call */
-    public private(set) ?string $classMethod = null;
 
 
 
@@ -36,15 +34,6 @@ final class ClassRoute extends RouteDefinition {
 
     public function disableReflection(): RouteInterface {
         throw new RouterConfigurationException('Disabling reflection is only supported for callables');
-    }
-
-
-
-    /**
-     * @return class-string
-     */
-    public function getHandler(): string {
-        return $this->handler;
     }
 
 

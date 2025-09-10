@@ -27,54 +27,51 @@ class Node implements NodeInterface {
      */
     public function insert(string $path, RouteDefinition $route): void {
 
-        $currentNode = $this;
+        $node = $this;
 
-        while (true) {
+        while ($path !== '') {
 
-            if ($currentNode->compact !== '') {
+            if ($node->compact !== '') {
+                $child = new self();
+                $child->route = $node->route;
+                $child->children = $node->children;
+                $child->wildcard = $node->wildcard;
+                $child->compact = $node->compact;
+                $childSegment = RouteUtility::extractFirstSegment($child->compact);
 
-                $childNode = new self();
-                $childNode->route = $currentNode->route;
-                $childNode->children = $currentNode->children;
-                $childNode->wildcard = $currentNode->wildcard;
-                $childNode->compact = $currentNode->compact;
-                $childKey = RouteUtility::extractFirstSegment($childNode->compact);
-
-                $currentNode->route = null;
-                $currentNode->children = [$childKey => $childNode];
-                $currentNode->wildcard = null;
-                $currentNode->compact = '';
-
-            }
-
-            if ($path === '') {
-                break;
+                $node->route = null;
+                $node->children = [$childSegment => $child];
+                $node->wildcard = null;
+                $node->compact = '';
             }
 
             $segment = RouteUtility::extractFirstSegment($path);
 
             if ($segment === '*') {
-                $currentNode->wildcard ??= new self();
-                $currentNode = $currentNode->wildcard;
+                if ($path === '') {
+                    break;
+                }
+                $node->wildcard ??= new self();
+                $node = &$node->wildcard;
                 continue;
             }
 
-            if (isset($currentNode->children[$segment])) {
-                $currentNode = $currentNode->children[$segment];
+            if (isset($node->children[$segment])) {
+                $node = &$node->children[$segment];
                 continue;
             }
 
-            $currentNode->children[$segment] = new self();
-            $currentNode = $currentNode->children[$segment];
+            $node->children[$segment] = new self();
+            $node = &$node->children[$segment];
 
-            if (!str_contains($path, '*')) {
-                $currentNode->compact = $path;
+            if (!\str_contains($path, '*')) {
+                $node->compact = $path;
                 break;
             }
 
         }
 
-        $currentNode->route = $route;
+        $node->route = $route;
 
     }
 
@@ -93,21 +90,16 @@ class Node implements NodeInterface {
     public function match(string $path): ?RouteDefinition {
         $currentNode = $this;
 
-        while (true) {
+        while ($path !== '') {
 
             // If the node has a compact tail, it must match the beginning of the remaining path.
             if ($currentNode->compact !== '') {
-                if (str_starts_with($path, $currentNode->compact)) {
-                    $path = trim(substr($path, strlen($currentNode->compact)), '/');
+
+                if (\str_starts_with($path, $currentNode->compact)) {
+                    $path = \trim(\substr($path, \strlen($currentNode->compact)), '/');
                     break;
                 }
                 return null;
-            }
-
-
-            // If all segments are consumed, break out.
-            if ($path === '') {
-                break;
             }
 
             // Extract the next segment.
@@ -115,13 +107,14 @@ class Node implements NodeInterface {
 
             // Check for an exact child node match.
             if (isset($currentNode->children[$segment])) {
-                $currentNode = $currentNode->children[$segment];
+                $currentNode = &$currentNode->children[$segment];
                 continue;
             }
 
             // If there's a wildcard child, attempt to match it recursively.
-            if (($currentNode->wildcard !== null) && $route = $currentNode->wildcard->match($path)) {
+            if ($currentNode->wildcard && $route = $currentNode->wildcard->match($path)) {
                 RouteUtility::prependSegment($route->nodeContext, $segment);
+
                 return $route;
             }
 

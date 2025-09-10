@@ -14,6 +14,10 @@ class RouteParameter {
     public string $type = '';
     public mixed $defaultValue = null;
     public ?string $enum = null;
+    /**
+     * @var array|string[]
+     */
+    public array $unionTypes;
 
 
 
