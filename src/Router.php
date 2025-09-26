@@ -29,6 +29,7 @@ use ReflectionException;
 use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionNamedType;
+use ReflectionUnionType;
 use function array_filter;
 use function array_map;
 use function array_shift;
@@ -49,7 +50,7 @@ use const PHP_URL_PATH;
  *
  * Lightweight and fast PHP router for modern apps
  * Please notice: Code is written for performance and not for elegance.
- * It uses many "old" ways to doing things, because it is simply faster
+ * It uses many "old" ways to doing things because it is simply faster
  *
  * @link   https://github.com/rammewerk/router
  * @author Kristoffer Follestad <kristoffer@bonsy.no>
@@ -70,8 +71,10 @@ class Router {
     /** @var string The current path being matched */
     private string $path = '';
 
-    /** @var Closure(class-string):object to resolve class instances */
-    protected Closure $container;
+    /**
+     * @var Closure(class-string):object|null to resolve class instances
+     */
+    protected ?Closure $container = null;
 
 
 
@@ -80,15 +83,12 @@ class Router {
      *
      * Initializes the router with a dependency handler and sets up the routing tree.
      *
-     * @template T of object
-     *
-     * @param ?Closure(class-string<T>):T $container
-     * The closure is used to generate instances of objects when needed. The closure are given a class-string and
+     * @param ?Closure(class-string):object $container
+     * The closure is used to generate instances of objects when needed. The closure is given a class-string and
      * should return a fully instantiated instance of the same class.
      *
      */
     public function __construct(?Closure $container = null) {
-        /** @var ?Closure(class-string):object $container */
         $this->container = $container ?? static fn(string $class): object => new $class();
         $this->node = new Node();
     }
@@ -138,6 +138,35 @@ class Router {
         $callback($this);
         $this->active_group = null;
         return $group;
+    }
+
+
+
+    /**
+     * Sets or replaces the container for dependency injection
+     *
+     * This method allows injecting a fresh container before dispatch to prevent
+     * singleton leakage in FrankenPHP worker mode. Route factories remain cached
+     * for performance but will use the new container through late binding.
+     *
+     * @param Closure(class-string):object $container
+     *
+     * @return void
+     */
+    public function setContainer(Closure $container): void {
+        $this->container = $container;
+    }
+
+
+
+    /**
+     * Gets the current container closure
+     *
+     * @return Closure(class-string):object
+     * @throws RouterConfigurationException
+     */
+    public function getContainer(): Closure {
+        return $this->container ?? throw new RouterConfigurationException('Container not set');
     }
 
 
@@ -214,10 +243,10 @@ class Router {
         } else {
             /** @var ClassRoute $route */
             $method = $route->classMethod;
-            $container = $this->container;
+            $router = $this;
             $handler = $route->handler;
-            $route->factory = static function (array $context, object|null $request) use ($container, $handler, $method, $argumentFactory) {
-                return $container($handler)->{$method}(...$argumentFactory($context, $request));
+            $route->factory = static function (array $context, object|null $request) use ($router, $handler, $method, $argumentFactory) {
+                return $router->getContainer()($handler)->{$method}(...$argumentFactory($context, $request));
             };
         }
 
@@ -257,7 +286,7 @@ class Router {
 
                 $classReflection = new ReflectionClass($route->handler);
 
-                // 2. If class supports Route attribute, we only resolve attributes
+                // 2. If a class supports the Route attribute, we only resolve attributes
                 if ($classRouteAttr = $classReflection->getAttributes(Route::class)[0] ?? null) {
                     return $this->resolveClassAttributes($classReflection, $classRouteAttr, $route);
                 }
@@ -405,10 +434,11 @@ class Router {
      * @return array<Closure():object> The called method response.
      */
     protected function createMiddlewareFactories(array $middlewareQueue): array {
+        $router = $this;
         return array_reverse(array_map(
-            fn($middleware): Closure => function () use ($middleware): object {
+            static fn($middleware): Closure => static function () use ($middleware, $router): object {
                 if (is_string($middleware)) {
-                    return ($this->container)($middleware);
+                    return $router->getContainer()($middleware);
                 }
                 return $middleware;
             },
@@ -465,7 +495,10 @@ class Router {
     public function getParameterClosure(RouteDefinition $route): Closure {
 
         if (!$route->reflection) {
-            throw new InvalidRoute("Unable to reflect route handler for route: '/$route->pattern'");
+            if ($route instanceof ClosureRoute || $route instanceof ClassRoute) {
+                throw new InvalidRoute("Unable to reflect route handler for route: '/$route->pattern'");
+            }
+            throw new InvalidRoute("Unable to reflect route handler for route");
         }
 
         $handlerName = $route->reflection->getName();
@@ -489,7 +522,7 @@ class Router {
                 }
             }
 
-            if (!$set->type && $parameter->getType() instanceof \ReflectionUnionType) {
+            if (!$set->type && $parameter->getType() instanceof ReflectionUnionType) {
                 /** @phpstan-ignore-next-line */
                 $set->unionTypes = array_map(static fn($t) => $t->getName(), $parameter->getType()->getTypes());
             }
@@ -559,7 +592,7 @@ class Router {
 
                 if (!$parameter->builtIn) {
 
-                    // Use the given instance of request handler, if parameter is of same type
+                    // Use the given instance of request handler if the parameter is of the same type
                     if ($request && $request instanceof $parameter->type) {
                         $arguments[] = $request;
                         continue;
@@ -596,7 +629,7 @@ class Router {
                         throw new InvalidRoute("Invalid enum value for '$parameter->type'");
                     }
 
-                    // Then non-backed enum check based on case name
+                    // Then non-backed enum check based on the case name
                     if (enum_exists($parameter->type)) {
                         $arg = array_shift($args);
                         if (is_string($arg) && $arg !== '') {
@@ -610,7 +643,7 @@ class Router {
                     }
 
                     /** @phpstan-ignore-next-line */
-                    $arguments[] = ($this->container)($parameter->type);
+                    $arguments[] = $this->getContainer()($parameter->type);
                     continue;
 
                 }

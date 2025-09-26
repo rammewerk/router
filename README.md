@@ -85,7 +85,7 @@ use Rammewerk\Router\Router;
 
 // Define your dependency resolver.
 // This is a closure that receives a class string
-// and  must return an instance of that class.
+// and must return an instance of that class.
 $di_container = static fn( string $class) => new $class() );
 
 // Create Router
@@ -308,6 +308,25 @@ $router = new Router( static fn( string $class_string ) => $container->create($c
 ```
 
 This approach keeps your routes clean and ensures seamless dependency handling.
+
+### Worker Mode Support (FrankenPHP, RoadRunner, Swoole)
+
+For long-running processes like **FrankenPHP workers**, you can inject a fresh container before each request to prevent singleton leakage while maintaining performance:
+
+```php
+// Setup once during worker initialization
+$router = new Router($initialContainer);
+$router->add('/users/*', UserController::class);
+
+// Before each request in worker mode
+$freshContainer = createFreshContainer(); // Your container with fresh singletons
+$router->setContainer(fn($class) => $freshContainer->create($class));
+
+// Dispatch request with fresh dependencies
+$response = $router->dispatch();
+```
+
+This ensures that route factories remain cached for performance while using fresh dependency instances per request.
 
 ## 🛡️ Middleware
 

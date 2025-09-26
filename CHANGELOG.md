@@ -1,10 +1,17 @@
 CHANGELOG
 =========
 
+0.9.10
+---
+
+- **Late Container Binding** – Added `setContainer()` method to support container injection after router initialization. This prevents singleton leakage in FrankenPHP worker mode while preserving performance through cached route factories.
+- **Worker Mode Support** – Enhanced compatibility with long-running processes like FrankenPHP workers by allowing fresh container instances per request.
+- **Type Annotation Improvements** – Fixed PHPStan template issues for better static analysis support.
+
 0.9.9
 ---
 
-- Added support for prepended middleware on routes. This is now the default for grouped routes, ensuring group middleware runs before each child route’s middleware.
+- Added support for prepended middleware on routes. This is now the default for grouped routes, ensuring group middleware runs before each child route's middleware.
 - Minor code improvements and refactoring.
 
 0.9.8
