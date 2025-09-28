@@ -1,6 +1,16 @@
 CHANGELOG
 =========
 
+1.0.0
+---
+
+- **🎉 Major Release - Attribute-Only Routing** – Router has been completely refactored to support ONLY attribute-based routing. This simplifies the API and provides a more declarative approach to route definitions.
+- **HTTP Method Support** – Added full support for HTTP methods (GET, POST, PUT, DELETE) through the Route attribute. Methods can be specified using the `methods` parameter in `#[Route()]` attributes.
+- **Multiple Routes per Method** – Single controller methods can now handle multiple route patterns by using multiple `#[Route]` attributes on the same method.
+- **Enhanced Route Middleware** – Middleware can now be defined directly in Route attributes using the `middleware` parameter, providing fine-grained control over route-specific middleware.
+- **Flexible Method Handling** – Routes without specified methods allow all HTTP methods. When methods are specified, only those methods are allowed for that route.
+- **Breaking Changes** – This is a major version release with breaking changes. The previous closure-based and mixed routing approaches have been removed in favor of the cleaner attribute-only approach.
+
 0.9.10
 ---
 

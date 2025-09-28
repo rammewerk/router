@@ -25,6 +25,7 @@ With **minimal configuration** required, Rammewerk Router is **easy to set up** 
 - [Attribute-Based Routing](#-attribute-based-routing)
   - [Entry Points](#entry-points)
   - [Method Routes](#method-routes)
+  - [HTTP Methods](#http-methods)
   - [Multiple Routes](#multiple-routes)
   - [Route-Specific Middleware](#route-specific-middleware)
 - [Dynamic Parameters](#-dynamic-parameters)
@@ -133,6 +134,80 @@ class UserController {
     }
 }
 ```
+
+### HTTP Methods
+
+Routes can be restricted to specific HTTP methods using the `methods` parameter in the `#[Route]` attribute. If no methods are specified, the route accepts all HTTP methods.
+
+```php
+use Rammewerk\Router\Foundation\Route;
+
+class ApiController {
+
+    // Accepts all HTTP methods (default behavior)
+    #[Route('/api/status')]
+    public function status(): array {
+        return ['status' => 'ok'];
+    }
+
+    // Only accepts GET requests
+    #[Route('/api/users', methods: ['GET'])]
+    public function getUsers(): array {
+        return ['users' => []];
+    }
+
+    // Only accepts POST requests
+    #[Route('/api/users', methods: ['POST'])]
+    public function createUser(): array {
+        return ['message' => 'User created'];
+    }
+
+    // Accepts multiple specific methods
+    #[Route('/api/users/*', methods: ['PUT', 'PATCH'])]
+    public function updateUser(int $userId): array {
+        return ['message' => "User $userId updated"];
+    }
+
+    // Only accepts DELETE requests
+    #[Route('/api/users/*', methods: ['DELETE'])]
+    public function deleteUser(int $userId): array {
+        return ['message' => "User $userId deleted"];
+    }
+}
+```
+
+#### Same Path, Different Methods
+
+You can define multiple methods that handle the same path but different HTTP methods:
+
+```php
+class ResourceController {
+
+    #[Route('/api/resource', methods: ['GET'])]
+    public function get(): array {
+        return ['action' => 'get'];
+    }
+
+    #[Route('/api/resource', methods: ['POST'])]
+    public function create(): array {
+        return ['action' => 'create'];
+    }
+
+    #[Route('/api/resource', methods: ['PUT'])]
+    public function update(): array {
+        return ['action' => 'update'];
+    }
+
+    #[Route('/api/resource', methods: ['DELETE'])]
+    public function delete(): array {
+        return ['action' => 'delete'];
+    }
+}
+```
+
+#### Method Validation
+
+If a route specifies allowed methods and a request comes with an unallowed method, the router will throw an `InvalidRoute` exception with details about which methods are allowed.
 
 ### Multiple Routes
 
@@ -385,21 +460,27 @@ class AuthMiddleware {
 
 ## 🚀 Dispatching
 
-Dispatch requests with optional path and request object:
+Dispatch requests with optional path, request object, and HTTP method:
 
 ```php
 try {
-    // Dispatch current request
+    // Dispatch current request (uses $_SERVER['REQUEST_METHOD'])
     $response = $router->dispatch();
 
     // Dispatch specific path
     $response = $router->dispatch('/api/users/123');
 
+    // Dispatch with specific HTTP method
+    $response = $router->dispatch('/api/users', null, 'POST');
+
     // Dispatch with request object for middleware
     $response = $router->dispatch('/api/users', $serverRequest);
 
+    // Dispatch with path, request object, and method
+    $response = $router->dispatch('/api/users/123', $serverRequest, 'PUT');
+
 } catch (InvalidRoute $e) {
-    // Handle 404 errors
+    // Handle 404 errors and method not allowed errors
     return new NotFoundResponse();
 } catch (Throwable $e) {
     // Handle other errors
@@ -445,17 +526,32 @@ class ApiController {
 
 class UserController {
 
-    #[Route('/api/users', [AuthMiddleware::class])]
+    #[Route('/api/users', middleware: [AuthMiddleware::class], methods: ['GET'])]
     public function list(UserService $userService): array {
         return $userService->getAllUsers();
     }
 
-    #[Route('/api/users/*', [AuthMiddleware::class])]
+    #[Route('/api/users', middleware: [AuthMiddleware::class], methods: ['POST'])]
+    public function create(UserService $userService): array {
+        return $userService->createUser();
+    }
+
+    #[Route('/api/users/*', middleware: [AuthMiddleware::class], methods: ['GET'])]
     public function show(UserService $userService, int $userId): array {
         return $userService->getUser($userId);
     }
 
-    #[Route('/api/users/*/profile', [AuthMiddleware::class, OwnerMiddleware::class])]
+    #[Route('/api/users/*', middleware: [AuthMiddleware::class], methods: ['PUT'])]
+    public function update(UserService $userService, int $userId): array {
+        return $userService->updateUser($userId);
+    }
+
+    #[Route('/api/users/*', middleware: [AuthMiddleware::class], methods: ['DELETE'])]
+    public function delete(UserService $userService, int $userId): array {
+        return $userService->deleteUser($userId);
+    }
+
+    #[Route('/api/users/*/profile', middleware: [AuthMiddleware::class, OwnerMiddleware::class], methods: ['GET'])]
     public function profile(UserService $userService, int $userId): array {
         return $userService->getUserProfile($userId);
     }
