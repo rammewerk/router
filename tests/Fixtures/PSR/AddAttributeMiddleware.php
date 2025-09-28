@@ -19,7 +19,7 @@ class AddAttributeMiddleware implements MiddlewareInterface {
     /**
      * @var mixed The value of the attribute to add.
      */
-    private $attributeValue;
+    private mixed $attributeValue;
 
 
 
@@ -29,7 +29,7 @@ class AddAttributeMiddleware implements MiddlewareInterface {
      * @param string $attributeName The name of the attribute to add.
      * @param mixed $attributeValue The value of the attribute to add.
      */
-    public function __construct(string $attributeName = 'customAttribute', $attributeValue = 'AttributeValue') {
+    public function __construct(string $attributeName = 'customAttribute', mixed $attributeValue = 'AttributeValue') {
         $this->attributeName = $attributeName;
         $this->attributeValue = $attributeValue;
     }

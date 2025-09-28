@@ -7,6 +7,7 @@ namespace Rammewerk\Router\Foundation;
 use function ltrim;
 use function str_replace;
 use function strpos;
+use function substr;
 
 class RouteUtility {
 
@@ -14,8 +15,8 @@ class RouteUtility {
 
     public static function extractFirstSegment(string &$path): string {
         if (($p = strpos($path, '/')) !== false) {
-            $firstSegment = \substr($path, 0, $p);
-            $path = \substr($path, $p + 1);
+            $firstSegment = substr($path, 0, $p);
+            $path = substr($path, $p + 1);
             return $firstSegment;
         }
         $firstSegment = $path;

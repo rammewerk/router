@@ -4,29 +4,31 @@ declare(strict_types=1);
 
 namespace Rammewerk\Router\Definition;
 
-use Closure;
-use ReflectionFunction;
-use ReflectionMethod;
+use function explode;
 
+final class RouteDefinition implements RouteInterface {
 
-abstract class RouteDefinition implements RouteInterface {
-
-    /** @var array<class-string|object> List of middleware to run before handler */
+    /** @var array<class-string|object> List of middlewares to run before the handler */
     public protected(set) array $middleware = [];
 
-    /** @var bool Disables reflection for this route */
-    public protected(set) bool $skipReflection = false;
+    /** @var array<RouteHandler> Method-specific route handlers */
+    public array $handlers = [];
 
     public string $nodeContext = '';
 
     /** @var string The leftover part of the path still being worked on. */
     public string $context = '';
 
-    /** @var null|Closure(mixed[], object|null): mixed */
-    public ?Closure $factory = null;
 
-    /** @var null|ReflectionMethod|ReflectionFunction Reflection cache */
-    public ReflectionMethod|ReflectionFunction|null $reflection = null;
+
+    /**
+     * @param string $pattern
+     * @param class-string $routeClass
+     */
+    public function __construct(
+        public readonly string $pattern,
+        public readonly string $routeClass,
+    ) {}
 
 
 
@@ -35,9 +37,6 @@ abstract class RouteDefinition implements RouteInterface {
         $this->middleware = $prepend
             ? array_merge($middleware, $this->middleware)
             : array_merge($this->middleware, $middleware);
-        if ($this->skipReflection) {
-            throw new \LogicException('Middleware is not supported unless reflection is enabled');
-        }
         return $this;
     }
 
@@ -47,7 +46,25 @@ abstract class RouteDefinition implements RouteInterface {
      * @return string[]
      */
     public function getArguments(): array {
-        return $this->context !== '' ? \explode('/', $this->context) : [];
+        return $this->context !== '' ? explode('/', $this->context) : [];
+    }
+
+
+
+    /**
+     * Find a handler that supports the given HTTP method
+     */
+    public function getHandlerForMethod(string $method): ?RouteHandler {
+        return array_find($this->handlers, static fn(RouteHandler $handler) => $handler->supportsMethod($method));
+    }
+
+
+
+    /**
+     * Add a route handler for specific HTTP methods
+     */
+    public function addHandler(RouteHandler $handler): void {
+        $this->handlers[] = $handler;
     }
 
 

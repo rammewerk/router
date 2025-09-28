@@ -4,21 +4,18 @@ declare(strict_types=1);
 
 namespace Rammewerk\Router\Tests;
 
-use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
-use Nyholm\Psr7\Stream;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Rammewerk\Component\Container\Container;
 use Rammewerk\Router\Extension\PsrRouter;
-use Rammewerk\Router\Definition\RouteDefinition;
 use Rammewerk\Router\Error\InvalidRoute;
 use Rammewerk\Router\Error\RouterConfigurationException;
-use Rammewerk\Router\Tests\Benchmark\ClassRoute;
 use Rammewerk\Router\Tests\Fixtures\Middleware\MiddlewareAfterTest;
 use Rammewerk\Router\Tests\Fixtures\PSR\AddAttributeMiddleware;
 use Rammewerk\Router\Tests\Fixtures\PSR\AddCustomHeaderMiddleware;
 use Rammewerk\Router\Tests\Fixtures\PSR\PsrRouterClass;
+use Rammewerk\Router\Tests\Fixtures\PsrTestRoutes;
 
 class PsrRouterTest extends TestCase {
 
@@ -33,18 +30,14 @@ class PsrRouterTest extends TestCase {
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testAddsAttributeToRequest(): void {
         // Create an instance of the middleware
         $middleware = new AddAttributeMiddleware('testAttribute', 'TestValue');
 
-        $this->router->add('/test/attribute', function (ServerRequest $request): ResponseInterface {
-            // Retrieve the 'testAttribute' from the request
-            $attribute = $request->getAttribute('testAttribute', '');
-            // Create a stream with the attribute content
-            $stream = Stream::create($attribute);
-            // Create a new response with the stream as the body
-            return new Response()->withBody($stream);
-        })->middleware([$middleware]);
+        $this->router->entryPoint('/test/attribute', PsrTestRoutes::class)->middleware([$middleware]);
 
         // Create a server request
         $request = new ServerRequest('POST', 'https://example.com/test/attribute');
@@ -57,17 +50,16 @@ class PsrRouterTest extends TestCase {
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testAddsCustomHeader(): void {
 
         // Create an instance of the middleware
         $middleware = new AddCustomHeaderMiddleware('X-Test-Header', 'TestValue');
 
         // Create a mock RequestHandler that returns a response
-        $this->router->add('/test/header', function (): ResponseInterface {
-            return new Response()
-                ->withBody(Stream::create('Header Test'))
-                ->withHeader('Content-Type', 'text/plain');
-        })->middleware([$middleware]);
+        $this->router->entryPoint('/test/header', PsrTestRoutes::class)->middleware([$middleware]);
 
         // Create a server request
         $request = new ServerRequest('GET', 'https://example.com/test/header');
@@ -117,38 +109,41 @@ class PsrRouterTest extends TestCase {
 
     public function testInvalidRoute(): void {
         $this->expectException(InvalidRoute::class);
-        $this->router->add('/correct', function (): ResponseInterface {
-            return new Response();
-        });
+        $this->router->entryPoint('/correct', PsrTestRoutes::class);
         $this->router->dispatch('/wrong');
     }
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testInvalidMiddleware(): void {
         $this->expectException(RouterConfigurationException::class);
-        $this->router->add('/correct', function (): ResponseInterface {
-            return new Response();
-        })->middleware([MiddlewareAfterTest::class]);
+        $this->router->entryPoint('/correct', PsrTestRoutes::class)->middleware([MiddlewareAfterTest::class]);
         $this->router->dispatch('/correct', new ServerRequest('GET', 'https://example.com/correct'));
     }
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testInvalidServerRequest(): void {
         $this->expectException(RouterConfigurationException::class);
         $this->expectExceptionMessage('PSR Router requires a ServerRequestInterface');
-        $this->router->add('/correct', function (): ResponseInterface {
-            return new Response();
-        })->middleware([AddAttributeMiddleware::class]);
-        $this->router->dispatch('/correct', null);
+        $this->router->entryPoint('/correct', PsrTestRoutes::class)->middleware([AddAttributeMiddleware::class]);
+        $this->router->dispatch('/correct');
     }
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testPsrRoutingClass(): void {
         $router = clone $this->router;
-        $router->add('/home', PsrRouterClass::class);
+        $router->entryPoint('/home', PsrRouterClass::class);
         $request = new ServerRequest('GET', 'https://example.com/home');
         $response = $router->dispatch($request->getUri()->getPath(), $request);
         $this->assertInstanceOf(ResponseInterface::class, $response);
@@ -157,9 +152,12 @@ class PsrRouterTest extends TestCase {
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testPsrRoutingClassWithParameters(): void {
         $router = clone $this->router;
-        $router->add('/home', PsrRouterClass::class);
+        $router->entryPoint('/home', PsrRouterClass::class);
         $request = new ServerRequest('GET', 'https://example.com/home/string/test');
         $response = $router->dispatch($request->getUri()->getPath(), $request);
         $this->assertInstanceOf(ResponseInterface::class, $response);

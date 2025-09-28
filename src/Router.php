@@ -9,11 +9,10 @@ use Closure;
 use DateTime;
 use DateTimeImmutable;
 use InvalidArgumentException;
-use Rammewerk\Router\Definition\ClassRoute;
-use Rammewerk\Router\Definition\ClosureRoute;
 use Rammewerk\Router\Definition\GroupDefinition;
 use Rammewerk\Router\Definition\GroupInterface;
 use Rammewerk\Router\Definition\RouteDefinition;
+use Rammewerk\Router\Definition\RouteHandler;
 use Rammewerk\Router\Definition\RouteInterface;
 use Rammewerk\Router\Definition\RouteParameter;
 use Rammewerk\Router\Error\InvalidRoute;
@@ -21,12 +20,9 @@ use Rammewerk\Router\Error\RouterConfigurationException;
 use Rammewerk\Router\Foundation\Node;
 use Rammewerk\Router\Foundation\NodeInterface;
 use Rammewerk\Router\Foundation\Route;
-use Rammewerk\Router\Foundation\RouteUtility;
-use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionEnum;
 use ReflectionException;
-use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionUnionType;
@@ -40,7 +36,6 @@ use function is_null;
 use function is_numeric;
 use function is_string;
 use function parse_url;
-use function str_starts_with;
 use function strcasecmp;
 use function trim;
 use const PHP_URL_PATH;
@@ -100,24 +95,22 @@ class Router {
      *
      * Registers a route with a URI pattern and a handler.
      *
-     * @param string $pattern               URI pattern to match against
-     * @param Closure|class-string $handler The handler to manage requests
+     * @param string $pattern     URI pattern to match against
+     * @param class-string $class The handler to manage requests
      *
      * @return RouteInterface
      */
-    public function add(string $pattern, Closure|string $handler): RouteInterface {
+    public function entryPoint(string $pattern, string $class): RouteInterface {
         $pattern = trim($pattern, '/');
 
-        $route = $handler instanceof Closure ?
-            new ClosureRoute($pattern, $handler) :
-            new ClassRoute($pattern, $handler);
+        $route = new RouteDefinition($pattern, $class);
 
         if (!str_contains($pattern, '*')) {
             $this->routes[$pattern] = $route;
         }
 
         $this->node->insert($pattern, $route);
-        $this->active_group?->registerRoute($route);
+        $this->active_group?->registerEntryPoint($route);
         return $route;
     }
 
@@ -178,11 +171,12 @@ class Router {
      *
      * @param string|null $path          The route path to locate. If not provided, the request_uri is used.
      * @param object|null $serverRequest Pass server request object to use for middleware and route handler.
+     * @param string|null $requestMethod The HTTP method to use for the route. If not provided, the request_method is used.
      *
      * @return mixed The called route method or closure response
      * @throws InvalidRoute
      */
-    public function dispatch(?string $path = null, object|null $serverRequest = null): mixed {
+    public function dispatch(?string $path = null, object|null $serverRequest = null, ?string $requestMethod = null): mixed {
 
         $path = $this->path = trim($path ?? $this->getUriPath(), '/ ');
 
@@ -194,19 +188,41 @@ class Router {
         $route->context = $route->nodeContext;
         $route->nodeContext = '';
 
-        if ($route->skipReflection && $route instanceof ClosureRoute) {
-            return ($route->handler)(...$route->getArguments());
+        /** @var string $requestMethod Find handler for current HTTP method */
+        $requestMethod = $requestMethod ?? $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        $requestMethod = strtoupper($requestMethod);
+
+        // If no handlers exist, the route needs reflection first
+        if (empty($route->handlers)) {
+            $route = $this->reflectHandler($route);
         }
 
-        if (!$route->factory) {
-            $route = $this->requestHandlerFactory($route);
+        $handler = $route->getHandlerForMethod($requestMethod);
+
+        // Show error if a handler is not found for a given request method
+        if (!$handler) {
+            $allowedMethods = [];
+            foreach ($route->handlers as $h) {
+                /** @noinspection SlowArrayOperationsInLoopInspection */
+                $allowedMethods = array_merge($allowedMethods, $h->methods);
+            }
+            $allowedMethods = array_unique($allowedMethods);
+            $methodList = empty($allowedMethods) ? 'all methods' : implode(', ', $allowedMethods);
+            throw new InvalidRoute("Method $requestMethod not allowed for path: $path. Allowed methods: $methodList");
         }
 
-        $handlerFactory = $route->factory ?? throw new InvalidRoute("Unable to handle route for: '$path'");
+        if (!$handler->factory) {
+            $handler = $this->createHandlerFactory($route, $handler);
+        }
+
+        $handlerFactory = $handler->factory ?? throw new InvalidRoute("Unable to handle route for: '$path'");
         $arguments = $route->getArguments();
 
-        return $route->middleware ? $this->runPipeline(
-            $this->createMiddlewareFactories($route->middleware),
+        // Combine route-level and handler-level middleware
+        $allMiddleware = array_merge($route->middleware, $handler->middleware);
+
+        return !empty($allMiddleware) ? $this->runPipeline(
+            $this->createMiddlewareFactories($allMiddleware),
             static fn(object|null $serverRequest) => $handlerFactory($arguments, $serverRequest),
             $serverRequest,
         ) : $handlerFactory($arguments, $serverRequest);
@@ -216,41 +232,32 @@ class Router {
 
 
     /**
-     * Creates a request handler factory
+     * Creates a handler factory for the route handler
      *
      * Processes the route handler and prepares it for execution.
      *
      * @param RouteDefinition $route
+     * @param RouteHandler $handler
      *
-     * @return RouteDefinition
+     * @return RouteHandler
      * @throws InvalidRoute
      */
-    private function requestHandlerFactory(RouteDefinition $route): RouteDefinition {
+    private function createHandlerFactory(RouteDefinition $route, RouteHandler $handler): RouteHandler {
 
-        if (!$route->reflection) {
-            $route = $this->reflectHandler($route);
+        if (!$handler->reflection) {
+            throw new InvalidRoute("Handler reflection is missing for route: '/$route->pattern'");
         }
 
-        $argumentFactory = $this->getParameterClosure($route);
-        $route->reflection = null; // Free up memory
+        $argumentFactory = $this->getHandlerParameterClosure($handler);
+        $handler->reflection = null; // Free up memory
 
-        if ($route instanceof ClosureRoute) {
-            $handler = $route->handler;
-            $route->factory = static function (array $context, object|null $request) use ($handler, $argumentFactory) {
-                /** @phpstan-ignore-next-line */
-                return $handler(...$argumentFactory($context, $request));
-            };
-        } else {
-            /** @var ClassRoute $route */
-            $method = $route->classMethod;
-            $router = $this;
-            $handler = $route->handler;
-            $route->factory = static function (array $context, object|null $request) use ($router, $handler, $method, $argumentFactory) {
-                return $router->getContainer()($handler)->{$method}(...$argumentFactory($context, $request));
-            };
-        }
+        $method = $handler->classMethod;
+        $class = $route->routeClass;
+        $handler->factory = function (array $context, object|null $request) use ($class, $method, $argumentFactory) {
+            return $this->getContainer()($class)->{$method}(...$argumentFactory($context, $request));
+        };
 
-        return $route;
+        return $handler;
 
     }
 
@@ -268,39 +275,24 @@ class Router {
      */
     public function reflectHandler(RouteDefinition $route): RouteDefinition {
         try {
+            $reflection = new ReflectionClass($route->routeClass);
 
-            if ($route instanceof ClosureRoute) {
-                $route->reflection = new ReflectionFunction($route->handler);
-                return $route;
+            foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+                $attributes = $method->getAttributes(Route::class);
+                foreach ($attributes as $attribute) {
+                    /** @var Route $routeAttribute */
+                    $routeAttribute = $attribute->newInstance();
+                    $this->addRouteHandler($routeAttribute, $route->routeClass, $method);
+                }
             }
 
-            // 1. If route->method explicitly set, always go straight to method
-            if ($route instanceof ClassRoute) {
+            return $this->swapRoute($route)
+                ?? throw new InvalidRoute("No matching Route attribute found in class {$reflection->getName()} for route '$route->pattern'");
 
-                if ($route->classMethod) {
-                    $route->reflection = new ReflectionMethod($route->handler, $route->classMethod);
-                    return $route->reflection->isPublic()
-                        ? $route
-                        : throw new RouterConfigurationException("Route method '$route->classMethod' is not a public method");
-                }
-
-                $classReflection = new ReflectionClass($route->handler);
-
-                // 2. If a class supports the Route attribute, we only resolve attributes
-                if ($classRouteAttr = $classReflection->getAttributes(Route::class)[0] ?? null) {
-                    return $this->resolveClassAttributes($classReflection, $classRouteAttr, $route);
-                }
-
-                return $this->resolveClassRoute($classReflection, $route);
-
-
-            }
-
-            throw new RouterConfigurationException("Route handler must be a callable or a class-string");
 
         } catch (ReflectionException $e) {
             throw new RouterConfigurationException(
-                "Unable to reflect route handler for route: '/$route->pattern' - {$e->getMessage()}",
+                "Unable to reflect route class for route: '/$route->pattern' - {$e->getMessage()}",
                 $e->getCode(),
                 $e,
             );
@@ -310,93 +302,28 @@ class Router {
 
 
     /**
-     * Resolve and call route method
-     *
-     * Determines the correct method to call within a route class.
-     *
-     * @template T of object
-     * @param ReflectionClass<T> $reflection
-     * @param ClassRoute $route
-     *
-     * @return RouteDefinition
-     * @throws InvalidRoute
-     */
-    private function resolveClassRoute(ReflectionClass $reflection, ClassRoute $route): RouteDefinition {
-
-        foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            $method_path = RouteUtility::convertMethodNameToPath($method->getName());
-            $pattern = $route->pattern;
-            if ($method_path !== 'index' && $method_path !== '__invoke') {
-                RouteUtility::appendSegment($pattern, $method_path);
-            }
-            $this->addInternal($pattern, $route->handler, $method);
-        }
-
-        return $this->swapRoute($route)
-            ?? throw new InvalidRoute("No valid method found in {$reflection->getName()}. Missing default method or __invoke()?");
-    }
-
-
-
-    /**
-     * Resolve class attributes for routing
-     *
-     * Parses and applies route attributes on a class.
-     *
-     * @template T of object
-     * @param ReflectionClass<T> $reflection
-     * @param ReflectionAttribute<Route> $classRouteAttr
-     * @param ClassRoute $route
-     *
-     * @return RouteDefinition
-     * @throws InvalidRoute
-     */
-    private function resolveClassAttributes(ReflectionClass $reflection, ReflectionAttribute $classRouteAttr, ClassRoute $route): RouteDefinition {
-
-        $classRoute = trim($classRouteAttr->newInstance()->path, '/ ');
-
-        // Validate that the base segment matches the class-level route
-        if (!str_starts_with($route->pattern, $classRoute)) {
-            throw new RouterConfigurationException("Route mismatch. Class attribute with path '$classRoute' doesn't match added base segment '/$route->pattern'");
-        }
-
-        foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            if ($attribute = $method->getAttributes(Route::class)[0] ?? null) {
-                $path = trim($attribute->newInstance()->path, '/ ');
-                if (!str_starts_with($path, $classRoute)) {
-                    RouteUtility::prependSegment($path, $classRoute);
-                }
-                $this->addInternal($path, $route->handler, $method);
-            }
-        }
-
-        return $this->swapRoute($route)
-            ?? throw new InvalidRoute("No matching Route attribute found in class {$reflection->getName()} for route '$route->pattern'");
-
-    }
-
-
-
-    /**
-     * Registers an internal route
+     * Registers a route handler
      *
      * Adds a route and assigns its reflection method.
      *
-     * @param string $pattern
+     * @param Route $routeAttribute
      * @param class-string $handler
      * @param ReflectionMethod $reflection
      *
      * @return void
      */
-    private function addInternal(string $pattern, string $handler, ReflectionMethod $reflection): void {
-        /** @var ClassRoute $route */
-        $route = $this->routes[$pattern] ?? $this->add($pattern, $handler);
-        if (!$route->classMethod) {
-            $route->classMethod($reflection->getName());
-        }
-        if (!$route->factory && !$route->reflection) {
-            $route->reflection = $reflection;
-        }
+    private function addRouteHandler(Route $routeAttribute, string $handler, ReflectionMethod $reflection): void {
+        $pattern = trim($routeAttribute->path, '/ ');
+        /** @var RouteDefinition $route */
+        $route = $this->routes[$pattern] ?? $this->entryPoint($pattern, $handler);
+
+        $route->addHandler(new RouteHandler(
+            methods: $routeAttribute->methods,
+            middleware: $routeAttribute->middleware,
+            classMethod: $reflection->getName(),
+            reflection: $reflection,
+        ));
+
         $route->nodeContext = '';
         $route->context = '';
     }
@@ -416,7 +343,7 @@ class Router {
         $swap_route = $this->node->match($this->path);
         if (!$swap_route) return null;
         $route->context = '';
-        $swap_route->middleware($route->middleware);
+        #$swap_route->middleware($route->middleware);
         $swap_route->context = $swap_route->nodeContext;
         $swap_route->nodeContext = '';
         return $swap_route;
@@ -483,28 +410,25 @@ class Router {
 
 
     /**
-     * Generates parameter closure
+     * Generates parameter closure for a route handler
      *
      * Resolves route parameters using reflection.
      *
-     * @param RouteDefinition $route
+     * @param RouteHandler $handler
      *
      * @return Closure
      * @throws InvalidRoute
      */
-    public function getParameterClosure(RouteDefinition $route): Closure {
+    public function getHandlerParameterClosure(RouteHandler $handler): Closure {
 
-        if (!$route->reflection) {
-            if ($route instanceof ClosureRoute || $route instanceof ClassRoute) {
-                throw new InvalidRoute("Unable to reflect route handler for route: '/$route->pattern'");
-            }
-            throw new InvalidRoute("Unable to reflect route handler for route");
+        if (!$handler->reflection) {
+            throw new InvalidRoute("Unable to reflect route handler for handler method: '$handler->classMethod'");
         }
 
-        $handlerName = $route->reflection->getName();
+        $handlerName = $handler->reflection->getName();
         $parameterClosures = [];
 
-        foreach ($route->reflection->getParameters() as $parameter) {
+        foreach ($handler->reflection->getParameters() as $parameter) {
             $set = new RouteParameter();
             $set->name = $parameter->getName();
             $set->variadic = $parameter->isVariadic();
@@ -531,7 +455,7 @@ class Router {
         }
 
         // Free up memory
-        $route->reflection = null;
+        $handler->reflection = null;
 
         $convertToType = static function (string $type, mixed $value): mixed {
 

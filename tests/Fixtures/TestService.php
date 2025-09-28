@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Rammewerk\Router\Tests\Fixtures;
 
-class TestService {
+readonly class TestService {
 
     public function __construct(
-        private string $identifier
+        private string $identifier,
     ) {}
+
+
 
     public function getIdentifier(): string {
         return $this->identifier;
     }
+
+
 }

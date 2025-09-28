@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Rammewerk\Router\Tests\Fixtures;
 
+use Rammewerk\Router\Foundation\Route;
+
 class DependencyTestController {
 
-    public function getServiceId(TestService $service): string {
+    #[Route('service')]
+    #[Route('test')]
+    public function index(TestService $service): string {
         return $service->getIdentifier();
     }
 
-    public function index(): string {
-        return 'controller-index';
-    }
+
 }

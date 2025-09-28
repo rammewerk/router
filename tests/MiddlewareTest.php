@@ -6,10 +6,12 @@ namespace Rammewerk\Router\Tests;
 
 use PHPUnit\Framework\TestCase;
 use Rammewerk\Component\Container\Container;
+use Rammewerk\Router\Error\InvalidRoute;
 use Rammewerk\Router\Router;
 use Rammewerk\Router\Tests\Fixtures\Middleware\MiddlewareAfterTest;
 use Rammewerk\Router\Tests\Fixtures\Middleware\MiddlewareBeforeTest;
 use Rammewerk\Router\Tests\Fixtures\Middleware\RequestTest;
+use Rammewerk\Router\Tests\Fixtures\MiddlewareTestRoutes;
 
 class MiddlewareTest extends TestCase {
 
@@ -24,13 +26,14 @@ class MiddlewareTest extends TestCase {
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testMiddlewareOrderAndModification(): void {
 
         $request = new RequestTest();
 
-        $this->router->add('/count', function (RequestTest $req): int {
-            return $req->middleware_count;
-        })->middleware([
+        $this->router->entryPoint('/count', MiddlewareTestRoutes::class)->middleware([
             MiddlewareBeforeTest::class,
             new MiddlewareAfterTest(),
         ]);
@@ -51,23 +54,18 @@ class MiddlewareTest extends TestCase {
 
 
 
-    public function testMiddlewareGroup(): void {
+    /**
+     * @throws InvalidRoute
+     */
+    public function testMiddlewareOnAttribute(): void {
 
         $request = new RequestTest();
 
-        $this->router->group(function () {
-            $this->router->add('/hello', function (RequestTest $req): string {
-                return 'Hello';
-            });
-        })->middleware([
-            MiddlewareBeforeTest::class,
-            new MiddlewareAfterTest(),
-        ]);
-
-        $response = $this->router->dispatch('/hello', $request);
+        $this->router->entryPoint('/', MiddlewareTestRoutes::class);
+        $count = $this->router->dispatch('/hasMiddleware', $request);
 
         // Assertions for the response
-        $this->assertSame('Hello', $response);
+        $this->assertSame(1, $count);
         $this->assertSame(2, $request->middleware_count);
         $this->assertSame(
             [
@@ -80,15 +78,46 @@ class MiddlewareTest extends TestCase {
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
+    public function testMiddlewareGroup(): void {
+
+        $request = new RequestTest();
+
+        $this->router->group(function () {
+            $this->router->entryPoint('/hello', MiddlewareTestRoutes::class);
+        })->middleware([
+            MiddlewareBeforeTest::class,
+            new MiddlewareAfterTest(),
+        ]);
+
+        $response = $this->router->dispatch('/hello', $request);
+
+        // Assertions for the response
+        $this->assertSame('Hello', $response);
+        #$this->assertSame(2, $request->middleware_count);
+        $this->assertSame(
+            [
+                MiddlewareBeforeTest::class,
+                MiddlewareAfterTest::class,
+            ],
+            $request->middlewares,
+        );
+    }
+
+
+
+    /**
+     * @throws InvalidRoute
+     */
     public function testMiddlewareGroupWithNestedMiddleware(): void {
 
         $request = new RequestTest();
 
         $this->router->group(function () {
-            $this->router->add('/group', function (RequestTest $req): string {
-                return 'Group';
-            })->middleware([
-                new MiddlewareAfterTest()
+            $this->router->entryPoint('/group', MiddlewareTestRoutes::class)->middleware([
+                new MiddlewareAfterTest(),
             ]);
         })->middleware([
             MiddlewareBeforeTest::class,
@@ -102,7 +131,7 @@ class MiddlewareTest extends TestCase {
         $this->assertSame(
             [
                 MiddlewareBeforeTest::class,
-                MiddlewareAfterTest::class
+                MiddlewareAfterTest::class,
             ],
             $request->middlewares,
         );

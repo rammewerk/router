@@ -12,7 +12,7 @@ final class GroupDefinition implements GroupInterface {
 
 
     /** Define a route within the group */
-    public function registerRoute(RouteDefinition $definition): void {
+    public function registerEntryPoint(RouteDefinition $definition): void {
         $this->routes[] = $definition;
     }
 

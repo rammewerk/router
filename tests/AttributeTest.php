@@ -21,11 +21,37 @@ class AttributeTest extends TestCase {
         $this->router = new Router(fn(string $class) => new $class());
 
         // Register routes
-        $this->router->add('/dashboard', DashboardRoute::class);
+        $this->router->entryPoint('/dashboard', DashboardRoute::class);
     }
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
+    public function multipleRoutesSameClass(): void {
+
+        $this->router->entryPoint('/test', DashboardRoute::class);
+
+        $response = $this->router->dispatch('/dashboard/stats/123/details/456');
+        $this->assertSame('123456', $response);
+
+        $response = $this->router->dispatch('/test/multiple/123456');
+        $this->assertSame('123456', $response);
+
+        $response = $this->router->dispatch('/dashboard/stats/extra/92819');
+        $this->assertSame('92819', $response);
+
+        // Dispatch and check response for /dashboard/stats/123/details/extra
+        $response = $this->router->dispatch('/dashboard/stats/123/details/456/Extra');
+        $this->assertSame('123456Extra', $response);
+    }
+
+
+
+    /**
+     * @throws InvalidRoute
+     */
     public function testStatsRouteWithParameters(): void {
         // Dispatch and check response for /dashboard/stats/123/details
         $response = $this->router->dispatch('/dashboard/stats/123/details/456');
@@ -38,6 +64,9 @@ class AttributeTest extends TestCase {
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testProfileRoute(): void {
         // Dispatch and check response for /dashboard/profile
         $response = $this->router->dispatch('/dashboard/profile');
@@ -54,7 +83,7 @@ class AttributeTest extends TestCase {
 
     public function testMissingClassRouteAttribute(): void {
         // Attempt to dispatch an invalid route
-        $this->router->add('/test', RouterTestClass::class);
+        $this->router->entryPoint('/test', RouterTestClass::class);
         $this->expectException(InvalidRoute::class);
         $this->router->dispatch('/test/invalid');
     }

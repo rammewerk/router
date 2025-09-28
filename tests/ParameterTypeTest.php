@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Rammewerk\Router\Tests;
 
+use DateTime;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use Rammewerk\Router\Error\RouterConfigurationException;
 use Rammewerk\Router\Router;
 use Rammewerk\Router\Error\InvalidRoute;
-use Rammewerk\Router\Tests\Fixtures\Attributes\DashboardRoute;
 use Rammewerk\Router\Tests\Fixtures\Enums\NonBackedEnum;
 use Rammewerk\Router\Tests\Fixtures\Enums\TestIntEnum;
 use Rammewerk\Router\Tests\Fixtures\Enums\TestStringEnum;
 use Rammewerk\Router\Tests\Fixtures\ParameterTestRoute;
-use Rammewerk\Router\Tests\Fixtures\RouterTestClass;
 
 class ParameterTypeTest extends TestCase {
 
@@ -24,7 +24,7 @@ class ParameterTypeTest extends TestCase {
     protected function setUp(): void {
         // Create a router with a basic dependency handler
         $this->router = new Router(fn(string $class) => new $class());
-        $this->router->add('/parameters', ParameterTestRoute::class);
+        $this->router->entryPoint('/parameters', ParameterTestRoute::class);
     }
 
 
@@ -62,13 +62,13 @@ class ParameterTypeTest extends TestCase {
 
     public function testBoolTrueParameter(): void {
         $response = $this->router->dispatch('/parameters/bool/true');
-        $this->assertSame(true, $response);
+        $this->assertTrue($response);
         $response = $this->router->dispatch('/parameters/bool/1');
-        $this->assertSame(true, $response);
+        $this->assertTrue($response);
         $response = $this->router->dispatch('/parameters/bool/on');
-        $this->assertSame(true, $response);
+        $this->assertTrue($response);
         $response = $this->router->dispatch('/parameters/bool/yes');
-        $this->assertSame(true, $response);
+        $this->assertTrue($response);
     }
 
 
@@ -165,13 +165,13 @@ class ParameterTypeTest extends TestCase {
 
     public function testDateTimeParameter(): void {
         $response = $this->router->dispatch('/parameters/dateTime/2022-01-01');
-        $this->assertInstanceOf(\DateTime::class, $response);
+        $this->assertInstanceOf(DateTime::class, $response);
     }
 
 
     public function testDateTimeImmutableParameter(): void {
         $response = $this->router->dispatch('/parameters/dateTimeImmutable/2022-01-01');
-        $this->assertInstanceOf(\DateTimeImmutable::class, $response);
+        $this->assertInstanceOf(DateTimeImmutable::class, $response);
     }
 
 

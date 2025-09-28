@@ -46,11 +46,8 @@ class AddCustomHeaderMiddleware implements MiddlewareInterface {
      * @return ResponseInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface {
-        // Delegate to the next middleware/handler
-        $response = $handler->handle($request);
-
         // Add the custom header to the response
-        return $response->withHeader($this->headerName, $this->headerValue);
+        return $handler->handle($request)->withHeader($this->headerName, $this->headerValue);
     }
 
 

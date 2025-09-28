@@ -1,6 +1,5 @@
 /.* export-ignore
 /tests export-ignore
-/example export-ignore
 /vendor export-ignore
 CHANGELOG.md export-ignore
 docker-compose.yml export-ignore

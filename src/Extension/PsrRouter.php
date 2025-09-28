@@ -19,7 +19,7 @@ class PsrRouter extends Router {
      * @param Closure(ServerRequestInterface):ResponseInterface $requestHandler
      * @param null|object $serverRequest
      *
-     * @return ResponseInterface The response from handler
+     * @return ResponseInterface The response from the handler
      */
     protected function runPipeline(array $middlewareQueue, Closure $requestHandler, object|null $serverRequest): ResponseInterface {
 

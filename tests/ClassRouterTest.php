@@ -5,7 +5,6 @@ declare(strict_types=1);
 
 namespace Rammewerk\Router\Tests;
 
-use Closure;
 use PHPUnit\Framework\TestCase;
 use Rammewerk\Component\Container\Container;
 use Rammewerk\Router\Error\InvalidRoute;
@@ -13,7 +12,6 @@ use Rammewerk\Router\Router;
 use Rammewerk\Router\Tests\Fixtures\RouterTestClass;
 use Rammewerk\Router\Tests\Fixtures\DependencyTestController;
 use Rammewerk\Router\Tests\Fixtures\TestService;
-use ReflectionClass;
 
 class ClassRouterTest extends TestCase {
 
@@ -28,19 +26,11 @@ class ClassRouterTest extends TestCase {
 
 
 
-    public function testOverride(): void {
-        $this->router->add('/number', RouterTestClass::class)->classMethod('index');
-        $this->router->add('/number', RouterTestClass::class)->classMethod('number');
-        // Line below should not affect the routes above
-        $this->router->add('/*/number', RouterTestClass::class)->classMethod('check');
-        $response = $this->router->dispatch('/number/20');
-        $this->assertEquals(20, $response);
-    }
-
-
-
+    /**
+     * @throws InvalidRoute
+     */
     public function testClassRouterIndex(): void {
-        $this->router->add('/', RouterTestClass::class);
+        $this->router->entryPoint('/', RouterTestClass::class);
 
         // Start output buffering
         ob_start();
@@ -59,14 +49,17 @@ class ClassRouterTest extends TestCase {
     public function testTooManyParameters(): void {
         $this->expectException(InvalidRoute::class);
         $this->expectExceptionMessage('Too many arguments');
-        $this->router->add('/', RouterTestClass::class);
-        $response = $this->router->dispatch('/wrong');
+        $this->router->entryPoint('/', RouterTestClass::class);
+        $this->router->dispatch('/wrong');
     }
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testAutoResolve(): void {
-        $this->router->add('/', RouterTestClass::class);
+        $this->router->entryPoint('/', RouterTestClass::class);
 
         // Start output buffering
         ob_start();
@@ -84,8 +77,11 @@ class ClassRouterTest extends TestCase {
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testNumberParameter(): void {
-        $this->router->add('/', RouterTestClass::class);
+        $this->router->entryPoint('/', RouterTestClass::class);
         $number = 20;
         $value = $this->router->dispatch("/number/$number");
         $this->assertEquals($number, $value);
@@ -93,8 +89,11 @@ class ClassRouterTest extends TestCase {
 
 
 
+    /**
+     * @throws InvalidRoute
+     */
     public function testSameReturnAsParam(): void {
-        $this->router->add('/', RouterTestClass::class);
+        $this->router->entryPoint('/', RouterTestClass::class);
         $same = 'Hello there - it is the same';
         $value = $this->router->dispatch("/same/$same");
         $this->assertEquals($same, $value);
@@ -105,7 +104,7 @@ class ClassRouterTest extends TestCase {
     public function testNoAutoResolve(): void {
         $this->expectException(InvalidRoute::class);
         $router = clone $this->router;
-        $router->add('/', RouterTestClass::class);
+        $router->entryPoint('/', RouterTestClass::class);
         $router->dispatch("/check/testing/too/many/parameters");
     }
 
@@ -114,7 +113,7 @@ class ClassRouterTest extends TestCase {
     public function testFewParameters(): void {
         $this->expectException(InvalidRoute::class);
         $router = clone $this->router;
-        $router->add('/check', RouterTestClass::class);
+        $router->entryPoint('/check', RouterTestClass::class);
         $router->dispatch("/check/multiple/too/12/parameters");
     }
 
@@ -122,17 +121,19 @@ class ClassRouterTest extends TestCase {
 
     /**
      * Test late container binding to prevent singleton leakage in FrankenPHP worker mode
+     *
+     * @throws InvalidRoute
      */
     public function testLateContainerBinding(): void {
-        // Create router without container initially
+        // Create a router without a container initially
         $router = new Router();
 
-        // Add route that requires dependency injection
-        $router->add('/service', DependencyTestController::class)->classMethod('getServiceId');
+        // Add a route that requires dependency injection
+        $router->entryPoint('/service', DependencyTestController::class);
 
-        // First container closure with specific service instance
-        $firstService = new TestService('first-request');
-        $router->setContainer(function($class) use ($firstService) {
+        // First container closure with a specific service instance
+        $router->setContainer(function ($class) {
+            $firstService = new TestService('first-request');
             if ($class === TestService::class) {
                 return $firstService;
             }
@@ -146,9 +147,9 @@ class ClassRouterTest extends TestCase {
         $firstResponse = $router->dispatch('/service');
         $this->assertEquals('first-request', $firstResponse);
 
-        // Second container closure with different service instance (simulating new request)
-        $secondService = new TestService('second-request');
-        $router->setContainer(function($class) use ($secondService) {
+        // Second container closure with a different service instance (simulating new request)
+        $router->setContainer(function ($class) {
+            $secondService = new TestService('second-request');
             if ($class === TestService::class) {
                 return $secondService;
             }
@@ -158,7 +159,7 @@ class ClassRouterTest extends TestCase {
             return new $class();
         });
 
-        // Second dispatch should use second container, not cached from first
+        // Second dispatch should use second container, not cached from the first
         $secondResponse = $router->dispatch('/service');
         $this->assertEquals('second-request', $secondResponse);
 
@@ -170,14 +171,17 @@ class ClassRouterTest extends TestCase {
 
     /**
      * Test that route factories remain cached for performance
+     *
+     * @throws InvalidRoute
      */
     public function testRouteCachingWithContainerSwapping(): void {
         $router = new Router();
-        $router->add('/test', DependencyTestController::class)->classMethod('getServiceId');
+        /** @todo convert to /test */
+        $router->entryPoint('/service', DependencyTestController::class);
 
         // First container setup
-        $firstService = new TestService('cached-test-1');
-        $router->setContainer(function($class) use ($firstService) {
+        $router->setContainer(function ($class) {
+            $firstService = new TestService('cached-test-1');
             if ($class === TestService::class) {
                 return $firstService;
             }
@@ -188,17 +192,17 @@ class ClassRouterTest extends TestCase {
         });
 
         // First dispatch - should build route factory
-        $response1 = $router->dispatch('/test');
+        $response1 = $router->dispatch('/service', requestMethod: 'GET');
         $this->assertEquals('cached-test-1', $response1);
 
-        // Get the route to check if factory is cached
-        $route = $router->routes['test'] ?? null;
+        // Get the route to check if the factory is cached
+        $route = $router->routes['service'] ?? null;
         $this->assertNotNull($route);
-        $this->assertNotNull($route->factory, 'Route factory should be cached after first dispatch');
+        $this->assertNotNull($route->getHandlerForMethod('GET')?->factory, 'Route factory should be cached after first dispatch');
 
         // Second container setup
-        $secondService = new TestService('cached-test-2');
-        $router->setContainer(function($class) use ($secondService) {
+        $router->setContainer(function ($class) {
+            $secondService = new TestService('cached-test-2');
             if ($class === TestService::class) {
                 return $secondService;
             }
@@ -208,12 +212,12 @@ class ClassRouterTest extends TestCase {
             return new $class();
         });
 
-        // Second dispatch - should reuse cached factory but with new container
-        $response2 = $router->dispatch('/test');
+        // Second dispatch - should reuse cached factory but with a new container
+        $response2 = $router->dispatch('/service');
         $this->assertEquals('cached-test-2', $response2);
 
         // Factory should still be cached (not regenerated)
-        $this->assertNotNull($route->factory, 'Route factory should remain cached after container swap');
+        $this->assertNotNull($route->getHandlerForMethod('GET')?->factory, 'Route factory should remain cached after container swap');
 
         // But responses should be different due to different containers
         $this->assertNotEquals($response1, $response2);

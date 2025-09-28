@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace Rammewerk\Router\Foundation;
 
 use Rammewerk\Router\Definition\RouteDefinition;
+use function str_contains;
+use function str_starts_with;
+use function strlen;
+use function substr;
+use function trim;
 
 class Node implements NodeInterface {
 
@@ -64,7 +69,7 @@ class Node implements NodeInterface {
             $node->children[$segment] = new self();
             $node = &$node->children[$segment];
 
-            if (!\str_contains($path, '*')) {
+            if (!str_contains($path, '*')) {
                 $node->compact = $path;
                 break;
             }
@@ -95,8 +100,8 @@ class Node implements NodeInterface {
             // If the node has a compact tail, it must match the beginning of the remaining path.
             if ($currentNode->compact !== '') {
 
-                if (\str_starts_with($path, $currentNode->compact)) {
-                    $path = \trim(\substr($path, \strlen($currentNode->compact)), '/');
+                if (str_starts_with($path, $currentNode->compact)) {
+                    $path = trim(substr($path, strlen($currentNode->compact)), '/');
                     break;
                 }
                 return null;

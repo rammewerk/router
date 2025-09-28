@@ -19,8 +19,7 @@ $memoryBefore = memory_get_usage();                                            /
 $memoryPeakBefore = memory_get_peak_usage() / 1024 / 1024;                     // Peak memory after the test
 $router = new Router(fn($class) => new $class());
 
-$benchmark = new \Rammewerk\Router\Tests\Benchmark\BenchmarkTest($router);
-$benchmark->runTest();
+// Do code here
 
 $memoryAfter = memory_get_peak_usage();                     // Peak memory after the test
 $memoryUsed = ($memoryAfter - $memoryBefore) / 1024 / 1024; // Convert bytes to MB
