@@ -1,9 +1,15 @@
 Rammewerk Router
 ====
 
-Rammewerk Router is a **lightweight**, **high-performance PHP router** designed for modern applications. It prioritizes **fast route resolution, minimal overhead**, and a straightforward setup. Built for **PHP 8.4**, it uses an **attribute-only routing approach** for clean, declarative route definitions.
+Rammewerk Router is a **lightweight**, **high-performance PHP router** designed for modern applications. It prioritizes
+**fast route resolution, minimal overhead**, and a straightforward setup. Built for **PHP 8.4**, it uses an *
+*attribute-only routing approach** for clean, declarative route definitions.
 
-With **minimal configuration** required, Rammewerk Router is **easy to set up** while offering powerful features like type-safe parameters, dependency injection, and middleware. It provides **just the right amount of structure** without unnecessary complexity - delivering performance and flexibility in a simple, intuitive package.
+An `AGENTS.md` file is now included to get AI Agents faster up to speed.
+
+With **minimal configuration** required, Rammewerk Router is **easy to set up** while offering powerful features like
+type-safe parameters, dependency injection, and middleware. It provides **just the right amount of structure** without
+unnecessary complexity - delivering performance and flexibility in a simple, intuitive package.
 
 #### Key Features:
 
@@ -19,27 +25,27 @@ With **minimal configuration** required, Rammewerk Router is **easy to set up** 
 
 - [Project Goals](#-project-goals)
 - [Getting Started](#-getting-started)
-  - [Install](#install)
-  - [Requirements](#requirements)
-  - [Basic Usage](#basic-usage)
+    - [Install](#install)
+    - [Requirements](#requirements)
+    - [Basic Usage](#basic-usage)
 - [Attribute-Based Routing](#-attribute-based-routing)
-  - [Entry Points](#entry-points)
-  - [Method Routes](#method-routes)
-  - [HTTP Methods](#http-methods)
-  - [Multiple Routes](#multiple-routes)
-  - [Route-Specific Middleware](#route-specific-middleware)
+    - [Entry Points](#entry-points)
+    - [Method Routes](#method-routes)
+    - [HTTP Methods](#http-methods)
+    - [Multiple Routes](#multiple-routes)
+    - [Route-Specific Middleware](#route-specific-middleware)
 - [Dynamic Parameters](#-dynamic-parameters)
-  - [Type-Safe Parameters](#type-safe-parameters)
-  - [Wildcard Parameters](#wildcard-parameters)
-  - [Parameter Types](#parameter-types)
-  - [Enums](#enums)
+    - [Type-Safe Parameters](#type-safe-parameters)
+    - [Wildcard Parameters](#wildcard-parameters)
+    - [Parameter Types](#parameter-types)
+    - [Enums](#enums)
 - [Dependency Injection](#-dependency-injection)
-  - [Container Setup](#container-setup)
-  - [Worker Mode Support](#worker-mode-support)
+    - [Container Setup](#container-setup)
+    - [Worker Mode Support](#worker-mode-support)
 - [Middleware](#-middleware)
-  - [Route Middleware](#route-middleware)
-  - [Group Middleware](#group-middleware)
-  - [Middleware Implementation](#middleware-implementation)
+    - [Route Middleware](#route-middleware)
+    - [Group Middleware](#group-middleware)
+    - [Middleware Implementation](#middleware-implementation)
 - [Dispatching](#-dispatching)
 - [Performance](#-performance)
 
@@ -69,7 +75,8 @@ composer require rammewerk/router
 
 - Requires PHP 8.4+
 - Server must route all requests to a single PHP file (e.g., index.php) using Caddy, Nginx, or Apache
-- Use a Dependency Injection container like [Rammewerk Container](https://github.com/rammewerk/container) for managing class instances
+- Use a Dependency Injection container like [Rammewerk Container](https://github.com/rammewerk/container) for managing
+  class instances
 
 ### Basic Usage
 
@@ -95,7 +102,8 @@ $response = $router->dispatch();
 
 ## 🏷️ Attribute-Based Routing
 
-Rammewerk Router uses **attribute-only routing**. Routes are defined using PHP attributes on methods, providing a clean and declarative approach.
+Rammewerk Router uses **attribute-only routing**. Routes are defined using PHP attributes on methods, providing a clean
+and declarative approach.
 
 ### Entry Points
 
@@ -137,7 +145,8 @@ class UserController {
 
 ### HTTP Methods
 
-Routes can be restricted to specific HTTP methods using the `methods` parameter in the `#[Route]` attribute. If no methods are specified, the route accepts all HTTP methods.
+Routes can be restricted to specific HTTP methods using the `methods` parameter in the `#[Route]` attribute. If no
+methods are specified, the route accepts all HTTP methods.
 
 ```php
 use Rammewerk\Router\Foundation\Route;
@@ -207,7 +216,8 @@ class ResourceController {
 
 #### Method Validation
 
-If a route specifies allowed methods and a request comes with an unallowed method, the router will throw an `InvalidRoute` exception with details about which methods are allowed.
+If a route specifies allowed methods and a request comes with an unallowed method, the router will throw an
+`InvalidRoute` exception with details about which methods are allowed.
 
 ### Multiple Routes
 
@@ -381,10 +391,13 @@ $response = $router->dispatch();
 The router automatically builds up performance caches in worker mode:
 
 - **Route Factory Caching**: Once a route is accessed, its handler factory is cached for subsequent requests
-- **Reflection Caching**: Method reflection is performed only once per route, then the reflection data is discarded to save memory
+- **Reflection Caching**: Method reflection is performed only once per route, then the reflection data is discarded to
+  save memory
 - **Parameter Closure Caching**: Type conversion logic is cached per route method
 
-This means your application gets faster over time as route caches build up automatically. The first request to each route performs reflection and builds the factory, while subsequent requests use the cached factories for maximum performance.
+This means your application gets faster over time as route caches build up automatically. The first request to each
+route performs reflection and builds the factory, while subsequent requests use the cached factories for maximum
+performance.
 
 ## 🛡️ Middleware
 
@@ -425,7 +438,8 @@ $router->group(function(Router $r) {
 ]);
 ```
 
-You can also add middleware to individual entry points within a group. Entry point middleware runs **after** the group middleware:
+You can also add middleware to individual entry points within a group. Entry point middleware runs **after** the group
+middleware:
 
 ```php
 $router->group(function(Router $r) {
@@ -584,4 +598,5 @@ This new attribute-only approach provides:
 - **Route-Specific Middleware**: Fine-grained control over middleware application
 - **Multiple Routes**: Methods can handle multiple route patterns
 
-The router maintains all the powerful features like type-safe parameters, dependency injection, and high performance while simplifying the API to focus purely on attribute-based route definitions.
+The router maintains all the powerful features like type-safe parameters, dependency injection, and high performance
+while simplifying the API to focus purely on attribute-based route definitions.
