@@ -1,27 +1,50 @@
 CHANGELOG
 =========
 
+1.0.1
+---
+
+- **Improved Error Messages** – Enhanced error reporting when route handlers cannot be found. The router now
+  distinguishes between missing routes and HTTP method mismatches, providing clearer feedback.
+- **Non-Public Method Detection** – Added validation to detect Route attributes placed on protected or private methods.
+  The router now throws a descriptive `RouterConfigurationException` explaining that route handlers must be public
+  methods.
+- **Better HTTP Method Errors** – When a route exists but doesn't support the requested HTTP method, error messages now
+  clearly show which methods are allowed (e.g., "Allowed methods: POST, PUT" instead of the confusing "Allowed methods:
+  all methods").
+- **AI Agent Guide** - Added `AGENTS.md` to help developers and AI agents alike understand the router's behavior in an
+  effective way.
+
 1.0.0
 ---
 
-- **🎉 Major Release - Attribute-Only Routing** – Router has been completely refactored to support ONLY attribute-based routing. This simplifies the API and provides a more declarative approach to route definitions.
-- **HTTP Method Support** – Added full support for HTTP methods (GET, POST, PUT, DELETE) through the Route attribute. Methods can be specified using the `methods` parameter in `#[Route()]` attributes.
-- **Multiple Routes per Method** – Single controller methods can now handle multiple route patterns by using multiple `#[Route]` attributes on the same method.
-- **Enhanced Route Middleware** – Middleware can now be defined directly in Route attributes using the `middleware` parameter, providing fine-grained control over route-specific middleware.
-- **Flexible Method Handling** – Routes without specified methods allow all HTTP methods. When methods are specified, only those methods are allowed for that route.
-- **Breaking Changes** – This is a major version release with breaking changes. The previous closure-based and mixed routing approaches have been removed in favor of the cleaner attribute-only approach.
+- **🎉 Major Release - Attribute-Only Routing** – Router has been completely refactored to support ONLY attribute-based
+  routing. This simplifies the API and provides a more declarative approach to route definitions.
+- **HTTP Method Support** – Added full support for HTTP methods (GET, POST, PUT, DELETE) through the Route attribute.
+  Methods can be specified using the `methods` parameter in `#[Route()]` attributes.
+- **Multiple Routes per Method** – Single controller methods can now handle multiple route patterns by using multiple
+  `#[Route]` attributes on the same method.
+- **Enhanced Route Middleware** – Middleware can now be defined directly in Route attributes using the `middleware`
+  parameter, providing fine-grained control over route-specific middleware.
+- **Flexible Method Handling** – Routes without specified methods allow all HTTP methods. When methods are specified,
+  only those methods are allowed for that route.
+- **Breaking Changes** – This is a major version release with breaking changes. The previous closure-based and mixed
+  routing approaches have been removed in favor of the cleaner attribute-only approach.
 
 0.9.10
 ---
 
-- **Late Container Binding** – Added `setContainer()` method to support container injection after router initialization. This prevents singleton leakage in FrankenPHP worker mode while preserving performance through cached route factories.
-- **Worker Mode Support** – Enhanced compatibility with long-running processes like FrankenPHP workers by allowing fresh container instances per request.
+- **Late Container Binding** – Added `setContainer()` method to support container injection after router initialization.
+  This prevents singleton leakage in FrankenPHP worker mode while preserving performance through cached route factories.
+- **Worker Mode Support** – Enhanced compatibility with long-running processes like FrankenPHP workers by allowing fresh
+  container instances per request.
 - **Type Annotation Improvements** – Fixed PHPStan template issues for better static analysis support.
 
 0.9.9
 ---
 
-- Added support for prepended middleware on routes. This is now the default for grouped routes, ensuring group middleware runs before each child route's middleware.
+- Added support for prepended middleware on routes. This is now the default for grouped routes, ensuring group
+  middleware runs before each child route's middleware.
 - Minor code improvements and refactoring.
 
 0.9.8
