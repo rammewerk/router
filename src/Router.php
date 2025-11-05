@@ -201,13 +201,19 @@ class Router {
 
         // Show error if a handler is not found for a given request method
         if (!$handler) {
+            // If no handlers exist at all, this is a configuration issue
+            if (empty($route->handlers)) {
+                throw new InvalidRoute("No route handlers found for path: $path");
+            }
+
+            // Handler exists but not for this HTTP method
             $allowedMethods = [];
             foreach ($route->handlers as $h) {
                 /** @noinspection SlowArrayOperationsInLoopInspection */
                 $allowedMethods = array_merge($allowedMethods, $h->methods);
             }
             $allowedMethods = array_unique($allowedMethods);
-            $methodList = empty($allowedMethods) ? 'all methods' : implode(', ', $allowedMethods);
+            $methodList = empty($allowedMethods) ? 'all HTTP methods' : implode(', ', $allowedMethods);
             throw new InvalidRoute("Method $requestMethod not allowed for path: $path. Allowed methods: $methodList");
         }
 
@@ -283,6 +289,20 @@ class Router {
                     /** @var Route $routeAttribute */
                     $routeAttribute = $attribute->newInstance();
                     $this->addRouteHandler($routeAttribute, $route->routeClass, $method);
+                }
+            }
+
+            // Check if route attributes exist on non-public methods and provide a helpful error
+            if (empty($route->handlers)) {
+                foreach ($reflection->getMethods(ReflectionMethod::IS_PROTECTED | ReflectionMethod::IS_PRIVATE) as $method) {
+                    $attributes = $method->getAttributes(Route::class);
+                    if (!empty($attributes)) {
+                        $visibility = $method->isProtected() ? 'protected' : 'private';
+                        throw new RouterConfigurationException(
+                            "Route attribute found on $visibility method '{$method->getName()}' in class {$reflection->getName()}. " .
+                            "Route handlers must be public methods."
+                        );
+                    }
                 }
             }
 
