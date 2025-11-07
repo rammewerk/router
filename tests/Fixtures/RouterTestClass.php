@@ -21,19 +21,19 @@ class RouterTestClass {
     }
 
 
-    #[Route('/check')]
+    #[Route('/check/*')]
     public function check(string $param): void {
         echo $param;
     }
 
 
-    #[Route('/number')]
+    #[Route('/number/*')]
     public function number(int $number): int {
         return $number;
     }
 
 
-    #[Route('/same')]
+    #[Route('/same/*')]
     public function same(string $same): string {
         return $same;
     }

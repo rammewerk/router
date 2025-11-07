@@ -9,6 +9,7 @@ use Closure;
 use DateTime;
 use DateTimeImmutable;
 use InvalidArgumentException;
+use LogicException;
 use Rammewerk\Router\Definition\GroupDefinition;
 use Rammewerk\Router\Definition\GroupInterface;
 use Rammewerk\Router\Definition\RouteDefinition;
@@ -60,6 +61,9 @@ class Router {
     /** @var array<string,RouteDefinition> A static list of routes */
     public array $routes = [];
 
+    /** @var array<string,RouteDefinition> Track wildcard routes for duplicate detection */
+    private array $wildcardRoutes = [];
+
     /** @var Node Radix tree of routes */
     private NodeInterface $node;
 
@@ -97,16 +101,39 @@ class Router {
      *
      * @param string $pattern     URI pattern to match against
      * @param class-string $class The handler to manage requests
+     * @param bool $overwrite     Allow overwriting the existing route (default: false)
      *
      * @return RouteInterface
+     * @throws RouterConfigurationException If the route already exists and $overwrite is false
      */
-    public function entryPoint(string $pattern, string $class): RouteInterface {
+    public function entryPoint(string $pattern, string $class, bool $overwrite = false): RouteInterface {
         $pattern = trim($pattern, '/');
+
+        // Normalize named parameters to wildcards: {anything} → *
+        $pattern = Foundation\RouteUtility::normalizePattern($pattern);
+
+        // Check for duplicate routes in static routes (non-wildcard)
+        if (!$overwrite && isset($this->routes[$pattern]) && !str_contains($pattern, '*')) {
+            throw new RouterConfigurationException(
+                "Route with pattern '$pattern' is already registered. Use \$overwrite = true to replace it.",
+            );
+        }
+
+        // Check for duplicate routes in wildcard routes
+        if (!$overwrite && isset($this->wildcardRoutes[$pattern]) && str_contains($pattern, '*')) {
+            throw new RouterConfigurationException(
+                "Route with pattern '$pattern' is already registered. Use \$overwrite = true to replace it.",
+            );
+        }
+
 
         $route = new RouteDefinition($pattern, $class);
 
+        // Store route based on type
         if (!str_contains($pattern, '*')) {
             $this->routes[$pattern] = $route;
+        } else {
+            $this->wildcardRoutes[$pattern] = $route;
         }
 
         $this->node->insert($pattern, $route);
@@ -254,6 +281,18 @@ class Router {
             throw new InvalidRoute("Handler reflection is missing for route: '/$route->pattern'");
         }
 
+        // Validate that pattern has enough wildcards for route parameters
+        $wildcardCount = substr_count($route->pattern, '*');
+        $routeParamCount = $this->countRouteParameters($handler->reflection);
+
+        if ($routeParamCount > $wildcardCount) {
+            throw new RouterConfigurationException(
+                "Route pattern '/{$route->pattern}' has {$wildcardCount} wildcard(s) " .
+                "but handler '{$handler->classMethod}()' expects {$routeParamCount} route parameter(s). " .
+                "Add wildcards or use named parameters like '/{$route->pattern}" . str_repeat('/*', $routeParamCount - $wildcardCount) . "'."
+            );
+        }
+
         $argumentFactory = $this->getHandlerParameterClosure($handler);
         $handler->reflection = null; // Free up memory
 
@@ -300,7 +339,7 @@ class Router {
                         $visibility = $method->isProtected() ? 'protected' : 'private';
                         throw new RouterConfigurationException(
                             "Route attribute found on $visibility method '{$method->getName()}' in class {$reflection->getName()}. " .
-                            "Route handlers must be public methods."
+                            "Route handlers must be public methods.",
                         );
                     }
                 }
@@ -335,7 +374,8 @@ class Router {
     private function addRouteHandler(Route $routeAttribute, string $handler, ReflectionMethod $reflection): void {
         $pattern = trim($routeAttribute->path, '/ ');
         /** @var RouteDefinition $route */
-        $route = $this->routes[$pattern] ?? $this->entryPoint($pattern, $handler);
+        // Check both static and wildcard route storage
+        $route = $this->routes[$pattern] ?? $this->wildcardRoutes[$pattern] ?? $this->entryPoint($pattern, $handler);
 
         $route->addHandler(new RouteHandler(
             methods: $routeAttribute->methods,
@@ -363,7 +403,10 @@ class Router {
         $swap_route = $this->node->match($this->path);
         if (!$swap_route) return null;
         $route->context = '';
-        #$swap_route->middleware($route->middleware);
+        // Only copy middleware if it's a different route and doesn't already have it
+        if ($swap_route !== $route && empty($swap_route->middleware)) {
+            $swap_route->middleware($route->middleware);
+        }
         $swap_route->context = $swap_route->nodeContext;
         $swap_route->nodeContext = '';
         return $swap_route;
@@ -622,6 +665,45 @@ class Router {
         };
 
 
+    }
+
+
+
+    /**
+     * Count parameters that come from the route (not DI)
+     *
+     * Counts parameters that are resolved from URL segments:
+     * - Built-in types (string, int, float, bool)
+     * - DateTime/DateTimeImmutable
+     * - Enums (backed and non-backed)
+     * - Variadic parameters
+     *
+     * Excludes class/interface types (resolved via DI).
+     *
+     * @param ReflectionMethod $method The method to analyze
+     *
+     * @return int Number of route parameters
+     */
+    private function countRouteParameters(ReflectionMethod $method): int {
+        $count = 0;
+        foreach ($method->getParameters() as $parameter) {
+            $type = $parameter->getType();
+            if (!$type instanceof ReflectionNamedType) continue;
+
+            $typeName = $type->getName();
+            $isBuiltIn = $type->isBuiltin();
+
+            // Count parameters that come from route (not DI)
+            if ($isBuiltIn || $typeName === 'DateTime' || $typeName === 'DateTimeImmutable' || enum_exists($typeName)) {
+                if ($parameter->isVariadic()) {
+                    // Variadic counts as needing at least one wildcard
+                    $count++;
+                    break;
+                }
+                $count++;
+            }
+        }
+        return $count;
     }
 
 

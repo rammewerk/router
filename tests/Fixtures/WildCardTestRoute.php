@@ -8,7 +8,7 @@ use Rammewerk\Router\Foundation\Route;
 
 class WildCardTestRoute {
 
-    #[Route('/wild')]
+    #[Route('/wild/*')]
     public function wild(string $path): string {
         return $path;
     }

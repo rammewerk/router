@@ -14,8 +14,10 @@ unnecessary complexity - delivering performance and flexibility in a simple, int
 #### Key Features:
 
 - **Attribute-Only Routing**: Define routes declaratively using PHP attributes on methods
+- **Named Parameters**: Use `{name}` syntax for readable route definitions (cosmetic, becomes `*`)
 - **Flexible Entry Points**: Map entry points to classes without requiring class-level route definitions
 - **Type-Safe Parameters**: Smart detection of route dependencies and parameters with full type safety
+- **Duplicate Protection**: Automatic detection of duplicate routes with explicit override option
 - **Middleware Support**: Add route-specific or group middleware for authentication, logging, and more
 - **Dependency Injection**: Full container support with late binding for worker mode compatibility
 - **Multiple Routes per Method**: Support multiple route attributes on the same method
@@ -116,6 +118,24 @@ $router->entryPoint('/api/users', UserController::class);
 // With wildcards for dynamic segments
 $router->entryPoint('/profile/*/settings', ProfileSettingsController::class);
 ```
+
+#### Duplicate Route Protection
+
+By default, attempting to register the same route pattern twice will throw a `RouterConfigurationException`:
+
+```php
+$router->entryPoint('/api/users', UserController::class);
+$router->entryPoint('/api/users', AdminController::class); // Throws exception!
+```
+
+If you need to explicitly overwrite a route, use the `$overwrite` parameter:
+
+```php
+$router->entryPoint('/api/users', UserController::class);
+$router->entryPoint('/api/users', AdminController::class, overwrite: true); // OK
+```
+
+**Note:** Wildcard routes (containing `*`) are not checked for duplicates since they use dynamic matching.
 
 ### Method Routes
 
@@ -280,6 +300,81 @@ class UserController {
 ### Wildcard Parameters
 
 Use `*` in your entry point or route path to capture dynamic segments:
+
+#### Named Parameters (Cosmetic Syntax)
+
+You can use `{name}` syntax for readability - it's purely cosmetic and gets converted to `*` internally:
+
+```php
+class UserController {
+
+    // These are equivalent - both become '/users/*' internally
+    #[Route('/users/{id}')]
+    #[Route('/users/*')]
+    public function show(int $userId): string {
+        return "User: $userId";
+    }
+
+    // Named parameters make intent clearer
+    #[Route('/blog/{slug}/comments/{commentId}')]
+    public function comment(string $slug, int $commentId): string {
+        return "Blog: $slug, Comment: $commentId";
+    }
+}
+```
+
+**Important Notes:**
+- `{anything}` is converted to `*` during route registration
+- Parameter names in `{}` are ignored - they're only for documentation
+- Duplicate patterns are detected after normalization: `/user/{id}` and `/user/{userId}` are considered duplicates
+
+#### Parameter Validation
+
+The router automatically validates that route patterns have sufficient wildcards for all route parameters:
+
+```php
+class UserController {
+    // ✅ Correct: Has wildcard for $id parameter
+    #[Route('/user/*')]
+    public function show(int $id): string {
+        return "User: $id";
+    }
+
+    // ❌ Error: Missing wildcard for $id parameter
+    #[Route('/user')]
+    public function invalid(int $id): string {
+        // Throws: Route pattern '/user' has 0 wildcard(s)
+        // but handler 'invalid()' expects 1 route parameter(s)
+    }
+
+    // ✅ Correct: 2 wildcards for 2 parameters
+    #[Route('/blog/{slug}/comments/{id}')]
+    public function comment(string $slug, int $id): string {
+        return "Blog: $slug, Comment: $id";
+    }
+
+    // ✅ Correct: DI parameters don't need wildcards
+    #[Route('/service')]
+    public function withDI(LoggerInterface $logger): string {
+        return "Service injected";
+    }
+
+    // ✅ Correct: Only route params need wildcards
+    #[Route('/mixed/*')]
+    public function mixed(LoggerInterface $logger, int $id): string {
+        // $logger is DI (no wildcard needed)
+        // $id is route param (wildcard required)
+        return "Mixed: $id";
+    }
+}
+```
+
+**Validation Rules:**
+- **Route parameters** (scalar types, DateTime, enums) require wildcards
+- **DI parameters** (classes, interfaces) don't require wildcards
+- **Optional parameters** still need wildcards if they're route parameters
+- **Variadic parameters** count as one parameter
+- Validation happens at route registration (not runtime)
 
 ```php
 // Entry point with wildcards

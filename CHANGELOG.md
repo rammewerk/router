@@ -1,6 +1,87 @@
 CHANGELOG
 =========
 
+1.1.0
+---
+
+### Breaking Changes
+
+- **Duplicate Route Protection** – Routes with identical patterns now throw `RouterConfigurationException` by default. This includes both static routes (e.g., `/api/users`) and wildcard routes (e.g., `/api/users/*`). Use the `$overwrite` parameter in `entryPoint()` to explicitly allow route replacement: `$router->entryPoint($pattern, $class, overwrite: true)`.
+
+- **Named Parameter Normalization** – Named parameters in route patterns (e.g., `{id}`, `{userId}`) are now normalized to wildcards (`*`) during registration. This means `/user/{id}` and `/user/{userId}` are treated as duplicate patterns and will throw an exception. The parameter names are purely cosmetic and ignored by the router.
+
+- **Wildcard Route Tracking** – Wildcard routes are now tracked separately and checked for duplicates. Previously, wildcard routes could be registered multiple times without error.
+
+### New Features
+
+- **Route Parameter Validation** – Added automatic validation to ensure route patterns have sufficient wildcards for all route parameters. When registering routes, the router now validates that each non-DI parameter has a corresponding wildcard in the pattern. Throws `RouterConfigurationException` with a helpful error message if wildcards are missing. Example: `#[Route('/user')]` with `function user(int $id)` will now throw an exception suggesting to use `/user/*`.
+
+- **Named Parameter Syntax** – Added support for `{name}` syntax in route patterns as a cosmetic alternative to `*`. Example: `#[Route('/user/{id}/posts/{postId}')]` is equivalent to `#[Route('/user/*/posts/*')]`. Parameter names are for documentation only and do not affect routing behavior.
+
+- **Enhanced Middleware Propagation** – Fixed middleware propagation from parent entry points to sub-routes discovered via attributes. Routes now properly inherit middleware from their parent entry points when patterns match.
+
+- **RouteUtility::normalizePattern()** – Added utility method to centralize pattern normalization logic. Converts `{anything}` syntax to `*` for consistent internal route matching.
+
+### Improvements
+
+- **Type Safety** – Improved type safety in pattern normalization with explicit `LogicException` throws on regex failures.
+- **Better Documentation** – Updated README.md and AGENTS.md with comprehensive examples of named parameters, duplicate detection, route coexistence rules, and parameter validation.
+- **Test Coverage** – Added 12 new tests in `RoutePatternTest.php` covering named parameters, duplicate detection, and route coexistence scenarios. Added 10 new tests in `RouteParameterValidationTest.php` covering parameter validation with wildcards, DI parameters, optional parameters, and variadic parameters.
+
+### Migration Guide
+
+If you're upgrading from 1.0.x:
+
+1. **Check for duplicate routes**: Review your route registrations. If you intentionally register the same pattern twice, add `overwrite: true`:
+   ```php
+   // Before (would silently overwrite):
+   $router->entryPoint('/api/users', UserController::class);
+   $router->entryPoint('/api/users', AdminController::class);
+
+   // After (explicit):
+   $router->entryPoint('/api/users', UserController::class);
+   $router->entryPoint('/api/users', AdminController::class, overwrite: true);
+   ```
+
+2. **Named parameters are normalized**: If you relied on different parameter names to create different routes, this will now fail:
+   ```php
+   // Before (might have worked):
+   #[Route('/user/{id}')]
+   #[Route('/user/{userId}')]  // Different name
+
+   // After (throws exception - they're duplicates):
+   #[Route('/user/*')]         // Use different patterns instead
+   #[Route('/user/profile/*')]
+   ```
+
+3. **Wildcard routes checked**: Duplicate wildcard patterns now throw exceptions:
+   ```php
+   // Before (would silently accept):
+   $router->entryPoint('/api/*', Controller1::class);
+   $router->entryPoint('/api/*', Controller2::class);
+
+   // After (throws exception or use overwrite):
+   $router->entryPoint('/api/*', Controller1::class);
+   $router->entryPoint('/api/*', Controller2::class, overwrite: true);
+   ```
+
+4. **Route parameters must have wildcards**: Routes with parameters now require explicit wildcards:
+   ```php
+   // Before (might have worked):
+   #[Route('/user')]
+   public function user(int $id) { }
+
+   // After (throws exception - add wildcard):
+   #[Route('/user/*')]
+   public function user(int $id) { }
+
+   // Or use named parameter syntax:
+   #[Route('/user/{id}')]
+   public function user(int $id) { }
+   ```
+
+   Note: DI parameters (classes, interfaces) don't require wildcards, only route parameters (scalar types, DateTime, enums).
+
 1.0.1
 ---
 

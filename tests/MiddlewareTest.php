@@ -138,4 +138,36 @@ class MiddlewareTest extends TestCase {
     }
 
 
+
+    /**
+     * Test that sub-routes inherit middleware from parent entry points
+     *
+     * This test verifies the bug fix where attribute routes with parent prefixes
+     * should inherit the middleware from their parent entry point.
+     *
+     * @throws InvalidRoute
+     */
+    public function testSubRouteInheritsParentEntryPointMiddleware(): void {
+
+        $request = new RequestTest();
+
+        // Register parent entry point with middleware
+        $this->router->entryPoint('/recman', MiddlewareTestRoutes::class)->middleware([
+            MiddlewareBeforeTest::class,
+        ]);
+
+        // Dispatch to sub-route that should inherit parent middleware
+        $middlewares = $this->router->dispatch('/recman/translations', $request);
+
+        // Assertions - the sub-route should have the parent's middleware
+        $this->assertSame(1, $request->middleware_count);
+        $this->assertSame(
+            [
+                MiddlewareBeforeTest::class,
+            ],
+            $middlewares,
+        );
+    }
+
+
 }

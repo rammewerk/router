@@ -40,6 +40,13 @@ $router->entryPoint('/api/users', UserController::class);
 
 // With wildcards for dynamic segments
 $router->entryPoint('/blog/*/comments', CommentController::class);
+
+// With overwrite protection (default throws exception on duplicate)
+$router->entryPoint('/api/users', UserController::class);
+$router->entryPoint('/api/users', AdminController::class); // Throws RouterConfigurationException!
+
+// Explicitly overwrite existing route
+$router->entryPoint('/api/users', AdminController::class, overwrite: true); // OK
 ```
 
 ## Usage with FrankenPHP (Worker Mode)
@@ -81,10 +88,16 @@ class UserController {
         return ['users' => []];
     }
 
-    // Route with parameters (wildcards = *)
+    // Route with wildcards (*)
     #[Route('/api/users/*/profile')]
     public function profile(int $userId): string {
         return "User: $userId";
+    }
+
+    // Named parameters (cosmetic - becomes * internally)
+    #[Route('/api/users/{id}/posts/{postId}')]
+    public function userPost(int $userId, int $postId): mixed {
+        return "User: $userId, Post: $postId";
     }
 
     // Multiple wildcards
@@ -93,6 +106,12 @@ class UserController {
         return "Blog: $slug, Comment: $commentId";
     }
 }
+```
+
+**Named Parameters**: `{name}` syntax is purely cosmetic and gets converted to `*` internally. Use it for readability.
+```php
+#[Route('/user/{id}')]      // Becomes /user/*
+#[Route('/user/{userId}')]   // Also becomes /user/* - DUPLICATE!
 ```
 
 ### HTTP Methods
@@ -148,6 +167,32 @@ class Controller {
     #[Route('/users/*/type/*')]
     public function type(int $id, TypeEnum $type): mixed {}
 }
+```
+
+**Parameter Validation:**
+- Route patterns **must** have a wildcard (`*` or `{name}`) for each route parameter
+- **Route parameters**: scalar types, DateTime, DateTimeImmutable, enums
+- **DI parameters**: classes, interfaces (don't require wildcards)
+- Optional parameters still need wildcards if they're route parameters
+- Throws `RouterConfigurationException` at registration if wildcards are missing
+
+```php
+// ✅ Valid: 1 wildcard for 1 route parameter
+#[Route('/user/*')]
+public function show(int $id): mixed {}
+
+// ❌ Invalid: Missing wildcard
+#[Route('/user')]
+public function invalid(int $id): mixed {}
+// Throws: Route pattern '/user' has 0 wildcard(s) but handler expects 1 route parameter(s)
+
+// ✅ Valid: DI parameter doesn't need wildcard
+#[Route('/service')]
+public function service(LoggerInterface $logger): mixed {}
+
+// ✅ Valid: Only route params need wildcards
+#[Route('/mixed/*')]
+public function mixed(LoggerInterface $logger, int $id): mixed {}
 ```
 
 ### Dependency Injection
@@ -232,9 +277,19 @@ $response = $router->dispatch('/api/users/123', $serverRequest, 'PUT');
 1. **Entry points** map URL patterns to controller classes
 2. **#[Route]** attributes define actual routes on methods with full paths
 3. **Wildcards (*)** in paths capture dynamic segments as method parameters
-4. **Type conversion** happens automatically based on parameter types
-5. **Dependencies** are resolved before route parameters in method signatures
-6. **Worker mode** requires fresh container injection per request via `setContainer()`
+4. **Named parameters** `{name}` are cosmetic - they become `*` internally
+5. **Duplicate detection** - same pattern throws exception (use `overwrite: true` to allow)
+6. **Type conversion** happens automatically based on parameter types
+7. **Dependencies** are resolved before route parameters in method signatures
+8. **Worker mode** requires fresh container injection per request via `setContainer()`
+
+### Route Coexistence Rules
+
+- `/user` and `/user/*` are **different routes** (static vs wildcard)
+- `/user/id` and `/user/*` are **different routes** (static segment vs wildcard)
+- `/user/{id}` and `/user/{userId}` are **duplicates** (both become `/user/*`)
+- `/test/*/*` and `/test/*/id` are **different routes** (different patterns)
+- Static routes have **priority** over wildcard routes during matching
 
 ## Performance Notes
 

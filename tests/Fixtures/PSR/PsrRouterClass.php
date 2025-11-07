@@ -19,7 +19,7 @@ class PsrRouterClass {
 
 
     /** @noinspection PhpUnusedParameterInspection */
-    #[Route('home/string')]
+    #[Route('home/string/*')]
     public function string(ServerRequestInterface $request, string $string): ResponseInterface {
         return new Response(200, [], $string);
     }

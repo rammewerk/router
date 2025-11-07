@@ -45,4 +45,21 @@ class RouteUtility {
     }
 
 
+
+    /**
+     * Normalize route pattern by converting named parameters to wildcards
+     *
+     * Converts {anything} syntax to * for internal route matching.
+     * This is purely cosmetic - parameter names are ignored.
+     *
+     * @param string $pattern The route pattern to normalize
+     *
+     * @return string The normalized pattern
+     * @throws \LogicException If pattern normalization fails (should never happen)
+     */
+    public static function normalizePattern(string $pattern): string {
+        return preg_replace('/\{[^}]+}/', '*', $pattern) ?? throw new \LogicException('Pattern normalization failed');
+    }
+
+
 }

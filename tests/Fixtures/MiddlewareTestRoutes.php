@@ -36,4 +36,11 @@ class MiddlewareTestRoutes {
     }
 
 
+
+    #[Route('recman/translations')]
+    public function translations(RequestTest $req): array {
+        return $req->middlewares;
+    }
+
+
 }

@@ -8,9 +8,9 @@ use Rammewerk\Router\Foundation\Route;
 
 class DashboardRoute {
 
-    #[Route('/test/multiple/')]
-    #[Route('/dashboard/stats/*/details')]
-    #[Route('/dashboard/stats/extra')]
+    #[Route('/test/multiple/*/*/*/*')]
+    #[Route('/dashboard/stats/*/details/*/*')]
+    #[Route('/dashboard/stats/extra/*/*')]
     public function stats_page(string $param1, string $param2, ?string $param3 = null): string {
         return $param1 . $param2 . $param3;
     }
